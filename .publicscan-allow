@@ -1,0 +1,5 @@
+# Accepted findings for the public preflight scan. One exact rule-id:location per line.
+
+# Commits carry the Co-Authored-By trailer naming the AI assistant that drafted them;
+# this repo is openly attributed, so the trailer is disclosure, not a leak.
+coauthor-trailer:commit-messages
