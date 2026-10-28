@@ -1,0 +1,20 @@
+Provenage
+Copyright 2026 Bryce Shashinka
+
+This product includes software developed by Bryce Shashinka and contributors
+(https://github.com/bryce-shashinka/provenage).
+
+Attribution
+-----------
+
+Patterns and code adopted from other projects are listed in this file, each
+with its license. Nothing has been adopted yet.
+
+Planned attribution, to be added here when material is actually adopted:
+
+- Open Civic Data: identifier and schema compatibility.
+- Council Data Project (cdp-scrapers): scraper patterns.
+- Townlight CivicCore / Meetings connector: connector and provenance patterns.
+
+Listing a project above is not a claim that it is used. See docs/PRIOR-ART.md
+for the broader index of related projects.

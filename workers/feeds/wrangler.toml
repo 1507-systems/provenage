@@ -1,0 +1,13 @@
+# surface: public
+name = "provenage-feeds"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+# Reached only through the shared API host's router as a service binding (see router-mount.md).
+# No routes, no workers.dev surface.
+workers_dev = false
+
+[[r2_buckets]]
+binding = "FEEDS"
+# Placeholder: the maintainer creates this bucket. The name is never exposed in responses.
+bucket_name = "provenage-feeds"
