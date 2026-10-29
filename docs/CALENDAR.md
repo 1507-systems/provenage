@@ -29,6 +29,17 @@ refreshes them. Apple Calendar import does not replace an existing UID, so
 re-importing a changed file creates duplicates or keeps the old event. Prefer
 subscribing.
 
+## Transport
+
+Feeds must be served over HTTPS with a publicly trusted certificate. Apple
+Calendar's subscription fetcher rewrites `webcal://` to `https://` and never
+falls back to plain HTTP: against a plain-HTTP server it sends only TLS
+handshakes and reports that the request failed, even though the same URL opens
+in a browser and the subscription sheet's preview loaded it. A subscription
+stored in iCloud is fetched by Apple's servers, not by the subscriber's machine,
+so the feed must also be reachable from the public internet. For local testing,
+put a tunnel with a trusted certificate in front of the development server.
+
 ## Detail levels
 
 - links only (default): title, time, place, status and links to authoritative
