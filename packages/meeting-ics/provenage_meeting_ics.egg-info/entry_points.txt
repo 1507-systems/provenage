@@ -1,0 +1,2 @@
+[console_scripts]
+meeting-ics = meeting_ics.cli:main
