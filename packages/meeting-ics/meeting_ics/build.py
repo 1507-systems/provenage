@@ -6,7 +6,8 @@ from typing import List, Optional
 
 from .ical import esc, fold, ics_utc, vtimezone
 from .ledger import Ledger, sha
-from .model import LINK_LABELS
+from .model import LINK_LABELS, STATUS_EMIT
+from .validate import validate_records
 
 
 @dataclass
@@ -79,7 +80,7 @@ def build_with_report(records, options=None, ledger=None):
     if opts.detail != "links":
         raise ValueError("unknown detail level %r" % opts.detail)
     X = opts.x_prefix
-    records = list(records)
+    records = validate_records(records)
     zones = {}
     for r in records:
         zones.setdefault(r.timezone, set()).add(int(r.date[:4]))
@@ -94,12 +95,8 @@ def build_with_report(records, options=None, ledger=None):
 
     events = cancelled = 0
     bumped = []
-    seen = set()
     for rec in records:
         uid = "%s-%s@%s" % (rec.uid_namespace, rec.record_id, opts.uid_domain)
-        if uid in seen:
-            raise ValueError("duplicate UID in input: %s" % uid)
-        seen.add(uid)
         tzid = rec.timezone
         stamp = rec.retrieved_at
         body, mtype = rec.body, rec.meeting_type
@@ -108,19 +105,30 @@ def build_with_report(records, options=None, ledger=None):
         end_dt, end_basis = _derive_end(rec, start_dt, opts)
 
         links = [(label, (rec.links or {}).get(key)) for key, label in LINK_LABELS]
-        desc = "\n".join("%s: %s" % (k, u) for k, u in links if u)
+        desc_lines = ["%s: %s" % (k, u) for k, u in links if u]
+        ra = rec.remote_access
+        if ra:
+            if ra.get("join_url"):
+                desc_lines.append("Join online: " + ra["join_url"])
+            if ra.get("dial_in"):
+                desc_lines.append("Dial-in: " + ra["dial_in"])
+        desc = "\n".join(desc_lines)
 
         critical = {"body": body, "date": rec.date, "start_time": rec.start_time, "timezone": tzid,
                     "status": status, "location": loc, "meeting_type": mtype,
                     "end_time": end_dt.strftime("%H:%M"), "end_basis": end_basis}
+        if ra is not None:
+            critical["remote_access"] = ra
         docs = {"links": [u for _, u in links],
-                "documents": sorted([d.get("kind"), d.get("url"), d.get("publish_date")]
-                                    for d in rec.documents)}
+                "documents": sorted(([d["kind"], d["url"], d["publish_date"]] for d in rec.documents),
+                                    key=lambda t: [(v is not None, v or "") for v in t])}
         led, was_bumped = ledger.update(uid, sha(critical), sha(docs), stamp)
         if was_bumped:
             bumped.append(uid)
 
         summary = mtype if mtype.lower().startswith(body.lower()) else "%s %s" % (body, mtype)
+        if status == "postponed":
+            summary = "Postponed: " + summary
         ev = ["BEGIN:VEVENT", "UID:" + uid, "DTSTAMP:" + ics_utc(stamp),
               "DTSTART;TZID=%s:%s" % (tzid, start_dt.strftime("%Y%m%dT%H%M%S")),
               "DTEND;TZID=%s:%s" % (tzid, end_dt.strftime("%Y%m%dT%H%M%S")),
@@ -133,16 +141,14 @@ def build_with_report(records, options=None, ledger=None):
         if portal:
             ev.append("URL:" + portal)
         amb = []
-        if status == "cancelled":
-            ev.append("STATUS:CANCELLED")
+        ical_status, basis, lifecycle = STATUS_EMIT[status]
+        ev.append("STATUS:" + ical_status)
+        if basis:
+            ev.append("%s-STATUS-BASIS:%s" % (X, basis))
+        if lifecycle:
+            ev.append("%s-LIFECYCLE:%s" % (X, lifecycle))
+        if ical_status == "CANCELLED":
             cancelled += 1
-        elif status == "confirmed":
-            ev.append("STATUS:CONFIRMED")
-        elif status == "scheduled_not_cancelled":
-            ev.append("STATUS:CONFIRMED")
-            ev.append(X + "-STATUS-BASIS:derived-from-title-not-observed")
-        else:
-            amb.append("unmapped-status:%s" % status)
         if not portal:
             amb.append("no-portal-meeting-page-url")
         if not loc:

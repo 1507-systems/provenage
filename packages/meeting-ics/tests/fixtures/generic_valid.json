@@ -1,0 +1,17 @@
+{"schema_version": 1, "records": [
+ {"uid_namespace": "demo", "record_id": "g1", "jurisdiction_slug": "demo-town", "body_slug": "town-council",
+  "body_name": "Town Council", "meeting_type": "Regular Meeting", "date": "2026-12-01", "start_time": "18:00",
+  "timezone": "Pacific/Honolulu", "status": "scheduled", "retrieved_at": "2026-11-24T12:00:00Z",
+  "location": "Town Hall\n1 Example Way",
+  "links": {"portal": "https://demo.example/m/g1", "agenda": "https://demo.example/m/g1/agenda"}},
+ {"uid_namespace": "demo", "record_id": "g2", "jurisdiction_slug": "demo-town", "body_slug": "planning-commission",
+  "body_name": "Planning Commission", "meeting_type": "Planning Commission Meeting", "date": "2026-12-03",
+  "start_time": "19:00", "end_time": "21:00", "end_basis": "source-observed", "timezone": "Pacific/Honolulu",
+  "status": "postponed", "retrieved_at": "2026-11-24T12:00:00Z", "links": {"portal": "https://demo.example/m/g2"}},
+ {"uid_namespace": "demo", "record_id": 3, "jurisdiction_slug": "demo-town", "body_slug": "town-council",
+  "body_name": "Town Council", "meeting_type": "Special Meeting", "date": "2026-12-10", "start_time": "17:30",
+  "timezone": "Pacific/Honolulu", "status": "rescheduled", "retrieved_at": "2026-11-24T12:00:00Z",
+  "location": "Town Hall",
+  "remote_access": {"join_url": "https://video.example.com/j/103", "dial_in": "+1 555 0100\nID 103"},
+  "links": {"portal": "https://demo.example/m/g3"}}
+]}
