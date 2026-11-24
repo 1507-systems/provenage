@@ -2,6 +2,12 @@
 
 ## 0.2.0 (unreleased)
 
+### Added
+
+- Fictional demo-town fixture (`tests/fixtures/demo-town/`: v1 and v2 CSVs, `options.json`, golden `build-set`
+  outputs), `tests/regen_demo_town.py [--check]`, golden tests, and a README quickstart from the CSV template to a
+  subscribable feed.
+
 ### Fixed (review follow-ups)
 
 - Lone UTF-16 surrogates (U+D800-U+DFFF) are rejected in text and URL fields instead of failing at encode time.

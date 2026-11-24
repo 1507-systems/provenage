@@ -9,6 +9,74 @@ Provenage deployment, not to the public feed. Source-specific knowledge lives on
 
 License: Apache-2.0 (see the repository root).
 
+## Quickstart: from a spreadsheet to a subscribable calendar
+
+You get a standard `.ics` calendar feed built from your own spreadsheet. No account, no network access while
+building, no dependencies beyond Python 3.11 or later. Every name below is fictional; replace it with yours.
+
+1. Install it into a virtual environment (or run `python3 -m meeting_ics` from this directory without installing):
+
+        python3 -m venv .venv
+        . .venv/bin/activate
+        pip install "git+https://github.com/1507-systems/provenage#subdirectory=packages/meeting-ics"
+
+2. Get the template, a file with only the header row, and fill in one row per meeting in a spreadsheet:
+
+        python3 -m meeting_ics template --output meetings.csv
+
+   Save it as CSV UTF-8 (in Excel: Save As > CSV UTF-8) and format the date and time columns as Text. Two rows, as
+   they look in a text editor (`record_id` is yours to choose and must never change; `status` is one of `scheduled`,
+   `rescheduled`, `cancelled`, `postponed`, `completed`):
+
+        record_id,jurisdiction_slug,body_slug,body_name,meeting_type,date,start_time,end_time,timezone,status,location,join_url,dial_in,portal_url,agenda_url,packet_url,minutes_url,video_url,retrieved_at
+        tc-101,my-town,town-council,Town Council,Regular Meeting,2027-01-12,18:30,,America/Chicago,scheduled,"Town Hall, 1 Main Street",,,https://my-town.example/meetings/tc-101,,,,,
+        tc-102,my-town,town-council,Town Council,Special Meeting,2027-01-19,17:00,,America/Chicago,cancelled,"Town Hall, 1 Main Street",,,,,,,,
+
+   `jurisdiction_slug` and `body_slug` (lowercase letters, digits, single hyphens) decide which feed a meeting goes
+   to: one feed per body plus one combined feed, `all`, per jurisdiction. The columns are described under
+   "CSV input" below.
+
+3. Write `set.json`. `uid_domain` is a domain you control: it becomes part of every event's permanent identity,
+   so choose it once. `jurisdictions` gives the feed titles.
+
+        {"uid_domain": "calendar.my-town.example",
+         "jurisdictions": {"my-town": {"name": "My Town"}}}
+
+4. Check the file, then build. `--uid-namespace` is a short permanent prefix for your UIDs; `--retrieved-at now`
+   stamps the build time. Rows you leave out are dropped from the feed, so cancel with `status`, never by deleting.
+
+        python3 -m meeting_ics validate --adapter csv_template --uid-namespace my-town --retrieved-at now --input meetings.csv
+        python3 -m meeting_ics build-set --adapter csv_template --uid-namespace my-town --retrieved-at now --input meetings.csv --config set.json --ledger ledger.json --out out
+
+   This prints `feeds=2 events=2 cancelled=1 sequence_bumped=none` and writes `out/calendar/my-town/town-council.ics`,
+   `out/calendar/my-town/all.ics` and `out/calendar/index.json`. Check a feed with
+   `python3 -m meeting_ics check-feed out/calendar/my-town/all.ics`.
+
+5. Publish the contents of `out/calendar/` on a web server over HTTPS with a publicly trusted certificate
+   (see [docs/CALENDAR.md](../../docs/CALENDAR.md), "Transport" and "Subscription vs import"), then subscribe to
+   `webcal://your-host/path/my-town/all.ics` in Apple Calendar, Outlook or Google Calendar ("from URL"). Subscribe
+   to either the combined feed or a body feed, not both, or each meeting shows twice. Apple honours the feed's
+   refresh hint, Outlook uses `X-PUBLISHED-TTL`, and Google refreshes on its own schedule (often many hours).
+
+6. To change something, edit the spreadsheet, keep the same `record_id`, and rebuild with the same `--ledger`
+   and `--overwrite` (the output folder is otherwise refused when it already holds feeds). Keep `ledger.json`
+   safe: it remembers each meeting's SEQUENCE, which tells calendars a meeting changed. Losing it resets every
+   SEQUENCE, and clients may then ignore your updates.
+
+### Try the demo
+
+The repository ships a fictional "Demo Town" with two bodies and eleven meetings, including a cancellation, a
+reschedule, a postponement and meetings either side of the November daylight-saving change. From a checkout of
+this repository, in `packages/meeting-ics`:
+
+    python3 -m meeting_ics build-set --adapter csv_template --uid-namespace demo-town --retrieved-at 2026-10-01T15:00:00Z --input tests/fixtures/demo-town/meetings-v1.csv --config tests/fixtures/demo-town/options.json --ledger demo-ledger.json --out demo-out
+
+Run the same command with `meetings-v2.csv`, `--retrieved-at 2026-11-20T15:00:00Z`, the same `--ledger` and
+`--overwrite` to see the update: four meetings get SEQUENCE 1 and the rest are untouched. The expected outputs are
+in `tests/fixtures/demo-town/expected/{v1,v2}/` and are compared byte for byte by `tests/test_demo_town.py`.
+After an intended change to the builder, `python3 tests/regen_demo_town.py` rewrites them (review `git diff`);
+`--check` reports differences without writing.
+
 ## Layout
 
 - `model.py` MeetingRecord, the source-agnostic input record, and the status mapping
@@ -21,7 +89,7 @@ License: Apache-2.0 (see the repository root).
 - `cli.py` / `__main__.py` command line
 - `adapters/primegov_normalized.py` the only PrimeGov-aware code
 - `adapters/csv_template.py` the generic CSV adapter; `adapters/csv_template.csv` is its header row (`meeting_ics template`)
-- `tests/` unittest suite
+- `tests/` unittest suite; `tests/fixtures/demo-town/` is the fictional demo (CSV inputs, `options.json`, golden outputs)
 
 ## Input schema
 
