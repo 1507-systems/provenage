@@ -20,7 +20,7 @@ License: Apache-2.0 (see the repository root).
 - `feedset.py` `build_feedset(...)`: per-body feeds, a combined feed per jurisdiction and `index.json` (`build-set`)
 - `cli.py` / `__main__.py` command line
 - `adapters/primegov_normalized.py` the only PrimeGov-aware code
-- `adapters/csv_template.csv` the CSV header row printed by `meeting_ics template`
+- `adapters/csv_template.py` the generic CSV adapter; `adapters/csv_template.csv` is its header row (`meeting_ics template`)
 - `tests/` unittest suite
 
 ## Input schema
@@ -141,7 +141,31 @@ escapes, `REFRESH-INTERVAL` parameters, and that no ATTENDEE, ORGANIZER or RSVP 
 It does not evaluate time-zone offsets; the tests cross-check those with the `icalendar` library.
 
 `python3 -m meeting_ics template [--output PATH]` prints (or writes, refusing to overwrite) the header row of the
-CSV input template. The template file ships with the package; the CSV adapter that reads it is a later addition.
+CSV input template (read it back with `--adapter csv_template`, below).
+
+### CSV input (`--adapter csv_template`)
+
+For a jurisdiction without a data feed, keep meetings in a spreadsheet and save it as CSV UTF-8:
+
+    python3 -m meeting_ics template --output meetings.csv
+    python3 -m meeting_ics build-set --adapter csv_template --uid-namespace NAME --input meetings.csv \
+        --retrieved-at now --config set.json --ledger ledger.json --out out
+
+`--adapter csv_template` works with `build`, `build-set` and `validate`. Columns: `record_id`, `jurisdiction_slug`,
+`body_slug`, `body_name`, `meeting_type`, `date`, `start_time`, `end_time`, `timezone`, `status`, `location`,
+`join_url`, `dial_in`, `portal_url`, `agenda_url`, `packet_url`, `minutes_url`, `video_url`, `retrieved_at`.
+Required: `record_id`, `jurisdiction_slug`, `body_slug`, `body_name`, `meeting_type`, `date`, `start_time`,
+`timezone`, `status`. Optional columns may be left out of the header.
+
+- Header names are exact; a column starting with `#` is ignored, as is a row whose `record_id` starts with `#`
+  and any blank row. Dates are `YYYY-MM-DD` (in Excel, format the column as Text). Times are 24-hour (`9:30` and
+  `18:00:00` are accepted and normalized). `status` is case-insensitive and `canceled` is read as `cancelled`.
+- `retrieved_at` (UTC `YYYY-MM-DDTHH:MM:SSZ`) is the DTSTAMP. Fill it per row, or pass `--retrieved-at TS|now`
+  once; the cell wins. `--retrieved-at` is valid only with this adapter.
+- `record_id` must never change or be reused: a reschedule keeps its id. To cancel, set `status` to `cancelled`;
+  do not delete the row, or the event disappears from every subscriber's calendar.
+- Problems are reported with the spreadsheet row, e.g. `row 3.date: must be a local date YYYY-MM-DD, got '12/1/26'`
+  (`row 1` is the header). Every problem is listed in one pass and nothing is written.
 
 `build` writes the `.ics` and then the ledger, each atomically (a `.tmp` file, then rename), and prints a warning
 to stderr when `uid_domain` is still the placeholder `example.invalid`; UIDs are permanent once published.
