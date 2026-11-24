@@ -53,7 +53,7 @@ building, no dependencies beyond Python 3.11 or later. Every name below is ficti
    `python3 -m meeting_ics check-feed out/calendar/my-town/all.ics`.
 
 5. Publish the contents of `out/calendar/` on a web server over HTTPS with a publicly trusted certificate
-   (see [docs/CALENDAR.md](../../docs/CALENDAR.md), "Transport" and "Subscription vs import"), then subscribe to
+   (see [docs/CALENDAR.md](https://github.com/1507-systems/provenage/blob/main/docs/CALENDAR.md), "Transport" and "Subscription vs import"), then subscribe to
    `webcal://your-host/path/my-town/all.ics` in Apple Calendar, Outlook or Google Calendar ("from URL"). Subscribe
    to either the combined feed or a body feed, not both, or each meeting shows twice. Apple honours the feed's
    refresh hint, Outlook uses `X-PUBLISHED-TTL`, and Google refreshes on its own schedule (often many hours).

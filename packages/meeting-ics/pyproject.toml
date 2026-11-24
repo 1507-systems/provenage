@@ -6,11 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "provenage-meeting-ics"
 version = "0.2.0"
 description = "Source-agnostic civic meeting records to an RFC 5545 iCalendar feed. Standard library only."
-readme = "README.md"
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Bryce Shashinka" }]
+maintainers = [{ name = "Provenage", email = "provenage@in.1507.systems" }]
 keywords = ["icalendar", "ics", "civic", "government", "meetings", "rfc5545"]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -27,9 +28,10 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/1507-systems/provenage"
-Source = "https://github.com/1507-systems/provenage/tree/main/packages/meeting-ics"
+Repository = "https://github.com/1507-systems/provenage"
 Issues = "https://github.com/1507-systems/provenage/issues"
-Changelog = "https://github.com/1507-systems/provenage/releases"
+Changelog = "https://github.com/1507-systems/provenage/blob/main/packages/meeting-ics/CHANGELOG.md"
+Documentation = "https://github.com/1507-systems/provenage/blob/main/packages/meeting-ics/README.md"
 
 [project.scripts]
 meeting-ics = "meeting_ics.cli:main"
