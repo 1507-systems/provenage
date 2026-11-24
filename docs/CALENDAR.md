@@ -34,6 +34,27 @@ Use `webcal://` to subscribe. Example (not yet live):
 
     webcal://api.1507.systems/provenage/calendar/longmont-co/city-council.ics
 
+## Feed index
+
+`meeting_ics build-set` writes the feeds and `calendar/index.json` (schema `provenage-calendar-index/1`). Per
+jurisdiction there is one feed per body and one combined `all.ics`. A meeting has the same UID, SEQUENCE and event
+text in both, so subscribe to one or the other, not both.
+
+    {"feeds": [{"body": "all", "body_name": null, "cancelled": 1, "events": 3,
+                "href": "demo-town/all.ics", "jurisdiction": "demo-town", "key": "calendar/demo-town/all.ics",
+                "kind": "combined", "sha256": "<64 hex>", "size": 1234, "title": "Demo Town: All meetings"}],
+     "generated_at": "2026-03-05T06:00:00Z", "schema": "provenage-calendar-index/1",
+     "totals": {"cancelled": 1, "events": 3, "feeds": 3}}
+
+- `feeds` is sorted by `key`. `kind` is `body` or `combined`. `body` is the body slug (`all` for combined) and
+  `body_name` the display name (null for combined). `title` is the feed's `X-WR-CALNAME`.
+- `href` is relative to the index URL; `key` is the storage key. `sha256` and `size` describe the exact feed bytes.
+- `events` and `cancelled` count VEVENTs in that feed. `totals` sums the combined feeds only, so each meeting is
+  counted once; `totals.feeds` counts every feed.
+- `generated_at` is the latest `retrieved_at` among the records, never the wall clock.
+- The file is `json.dumps(sort_keys=True, indent=1, ensure_ascii=False)` plus a newline, in UTF-8.
+- The SEQUENCE ledger is not part of this tree and is never served.
+
 ## Subscription vs import
 
 Delivery is subscription. A subscribed client re-fetches and applies updates by

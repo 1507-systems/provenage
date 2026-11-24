@@ -1,6 +1,7 @@
 """CLI: python3 -m meeting_ics <command>
 
   build     --input IN --output OUT --ledger LEDGER [--config JSON] [--adapter NAME --uid-namespace NS]
+  build-set --input IN --config SET.json --ledger LEDGER --out DIR [--overwrite] [--adapter NAME --uid-namespace NS]
   validate  --input IN [--adapter NAME --uid-namespace NS]
   check-feed FILE [--expect-events N]
   template  [--output PATH]
@@ -11,6 +12,10 @@ meeting_ics.adapters (e.g. a module you wrote), in which case it is that source'
 --config is a JSON object of BuildOptions fields (prodid, uid_domain, default_duration_hours|_minutes, end_rules,
 x_prefix, detail, calendar_name, calendar_description, method, refresh_interval). Unknown keys are an error.
 end_rules entries: [substring, "HH:MM"] or {"match":..,"end_local":..,"basis":..}.
+
+build-set groups records by jurisdiction_slug and body_slug (both required) and writes DIR/calendar/<j>/<b>.ics,
+DIR/calendar/<j>/all.ics and DIR/calendar/index.json with one shared ledger. --config must set uid_domain and may
+add jurisdictions: {slug: {"name": ...}} for feed titles; calendar_name is not allowed.
 
 check-feed checks a built .ics (strict parse, structure, escapes, no ATTENDEE) and exits 0 (ok), 1 (problems found)
 or 2 (unreadable file). template writes the CSV header row for the csv_template adapter to stdout or --output.
@@ -25,7 +30,7 @@ import json
 import re
 import sys
 
-from . import check
+from . import check, feedset
 from .build import BuildOptions, build_with_report
 from .ledger import Ledger, atomic_write
 from .validate import RecordError, load_input, validate_records
@@ -70,6 +75,19 @@ def _build(a):
               "control before publishing", file=sys.stderr)
     bumped = ",".join(rep["bumped"]) or "none"
     print("events=%d cancelled=%d sequence_bumped=%s" % (rep["events"], rep["cancelled"], bumped))
+
+
+def _build_set(a):
+    with open(a.config, encoding="utf-8") as f:
+        options, names = feedset.load_set_config(json.load(f))
+    records = load_records(a.input, a.adapter, a.uid_namespace)
+    ledger = Ledger.load(a.ledger)
+    fs = feedset.build_feedset(records, options, ledger, names)  # nothing is written before this succeeds
+    feedset.write_feedset(fs, a.out, a.overwrite)
+    fs.ledger.save(a.ledger)  # last: a failed ledger save leaves feeds that rebuild identically
+    t = fs.index["totals"]
+    print("feeds=%d events=%d cancelled=%d sequence_bumped=%s" % (t["feeds"], t["events"], t["cancelled"],
+                                                                  ",".join(fs.bumped) or "none"))
 
 
 def _validate(a):
@@ -117,6 +135,15 @@ def main(argv=None):
     b.add_argument("--adapter")
     b.add_argument("--uid-namespace", help="required with --adapter; prefix of every UID")
     b.set_defaults(func=_build, tail="nothing written")
+    s = sub.add_parser("build-set", help="build per-body feeds, a combined feed per jurisdiction and an index")
+    s.add_argument("--input", required=True)
+    s.add_argument("--config", required=True, help="BuildOptions keys (uid_domain required) plus jurisdictions")
+    s.add_argument("--ledger", required=True)
+    s.add_argument("--out", required=True, help="output directory; feeds go under OUT/calendar/")
+    s.add_argument("--overwrite", action="store_true", help="replace a non-empty OUT/calendar")
+    s.add_argument("--adapter")
+    s.add_argument("--uid-namespace", help="required with --adapter; prefix of every UID")
+    s.set_defaults(func=_build_set, tail="nothing written")
     v = sub.add_parser("validate", help="check an input file; prints 'ok records=N' or every problem")
     v.add_argument("--input", required=True)
     v.add_argument("--adapter")
