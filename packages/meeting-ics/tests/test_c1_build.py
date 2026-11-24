@@ -205,7 +205,19 @@ class Cli(unittest.TestCase):
                                  {"default_duration_hours": 0}, {"end_rules": ["x"]}, {"end_rules": [5]},
                                  {"end_rules": [["Board", {"duration_minutes": "x"}]]},
                                  {"end_rules": [["Board", {"duration_minutes": -5}]]}, {"prodid": "a,b"},
-                                 {"default_duration_minutes": 0.001}, {"default_duration_hours": 1e8})):
+                                 {"default_duration_minutes": 0.001}, {"default_duration_hours": 1e8},
+                                 {"end_rules": [["Regular", {}]]},
+                                 {"end_rules": [{"match": "Regular", "basis": "x"}]},
+                                 {"end_rules": [[5, {"duration_minutes": 30}]]},
+                                 {"end_rules": [{"match": 5, "duration_minutes": 30}]},
+                                 {"end_rules": [["Regular"]]},
+                                 {"end_rules": [["Regular", {"end_local": 5}]]},
+                                 {"end_rules": [["Regular", {"end_local": "25:00"}]]},
+                                 {"end_rules": [["Regular", 5]]}, {"end_rules": [["Regular", None]]},
+                                 {"end_rules": [["Regular", [1]]]},
+                                 {"end_rules": [["Regular", {"duration_minutes": "x"}]]},
+                                 {"end_rules": [["Regular", {"duration_minutes": -5}]]},
+                                 {"end_rules": 5})):
             with self.subTest(cfg):
                 code, out, err = self.run_cli("build", "--input", inp, "--output", self.path("o%d.ics" % i),
                                               "--ledger", self.path("l%d.json" % i),

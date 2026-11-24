@@ -62,7 +62,10 @@ class BuildOptions:
         if unknown:
             raise ValueError("unknown option(s): " + ", ".join(unknown))
         rules = []
-        for r in (d.get("end_rules") or []):
+        raw_rules = d.get("end_rules") or []
+        if not isinstance(raw_rules, (list, tuple)):
+            raise ValueError("end_rules must be a list, got %r" % (raw_rules,))
+        for r in raw_rules:
             if isinstance(r, (list, tuple)):
                 rules.append(tuple(r))
             elif isinstance(r, dict) and "match" in r:
@@ -95,12 +98,29 @@ class BuildOptions:
             v = getattr(self, name)
             if v is not None and not isinstance(v, str):
                 raise ValueError("%s must be text or null" % name)
+        if not isinstance(self.end_rules, (list, tuple)):
+            raise ValueError("end_rules must be a list, got %r" % (self.end_rules,))
         for i, item in enumerate(self.end_rules):
-            rule = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else None
+            if not (isinstance(item, (list, tuple)) and len(item) == 2):
+                raise ValueError("end_rules[%d] must be [substring, rule] or an object with a \"match\" key" % i)
+            match, rule = item
+            if not isinstance(match, str) or not match:
+                raise ValueError("end_rules[%d] match must be non-empty text, got %r" % (i, match))
+            if isinstance(rule, str):
+                rule = {"end_local": rule}
             if isinstance(rule, datetime.timedelta):
                 _check_duration("end_rules[%d]" % i, rule)
-            elif isinstance(rule, dict) and "duration_minutes" in rule:
-                _check_duration("end_rules[%d].duration_minutes" % i, rule["duration_minutes"], minutes=True)
+            elif isinstance(rule, dict):
+                if "end_local" not in rule and "duration_minutes" not in rule:
+                    raise ValueError("end_rules[%d] needs end_local or duration_minutes" % i)
+                if "end_local" in rule:
+                    el = rule["end_local"]
+                    if not (isinstance(el, str) and re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", el)):
+                        raise ValueError("end_rules[%d].end_local must be HH:MM, got %r" % (i, el))
+                if "duration_minutes" in rule:
+                    _check_duration("end_rules[%d].duration_minutes" % i, rule["duration_minutes"], minutes=True)
+            else:
+                raise ValueError("end_rules[%d] rule must be \"HH:MM\", a duration or an object, got %r" % (i, rule))
             basis = rule.get("basis") if isinstance(rule, dict) else None
             if basis is not None and not (isinstance(basis, str) and len(basis) <= MAX_BASIS
                                           and _BASIS_RE.fullmatch(basis)):
