@@ -1,11 +1,12 @@
 """C3: client-compatibility options, header order, text hardening, CLI check-feed and template."""
 import contextlib
+import datetime
 import io
 import os
 import tempfile
 import unittest
 
-from meeting_ics import BuildOptions, Ledger, build, build_with_report
+from meeting_ics import BuildOptions, Ledger, RecordError, build, build_with_report
 from meeting_ics.check import parse_ics, unescape_text, validate
 from meeting_ics.cli import main
 from meeting_ics.ical import esc, fold
@@ -79,6 +80,35 @@ class OptionsValidation(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             build([rec()], BuildOptions(uid_domain="bad domain\r\n"))
         self.assertTrue(str(cm.exception).startswith("uid_domain must be a host name"))
+
+    def test_durations_must_be_positive_numbers(self):
+        for kw in ({"default_duration": datetime.timedelta(0)}, {"default_duration": datetime.timedelta(minutes=-5)},
+                   {"default_duration": 5}, {"default_duration": None},
+                   {"end_rules": [("Board", {"duration_minutes": 0})]},
+                   {"end_rules": [("Board", {"duration_minutes": -30})]},
+                   {"end_rules": [("Board", {"duration_minutes": "30"})]},
+                   {"end_rules": [("Board", {"duration_minutes": True})]},
+                   {"end_rules": [("Board", {"duration_minutes": float("nan")})]},
+                   {"end_rules": [("Board", datetime.timedelta(0))]}):
+            with self.subTest(kw):
+                with self.assertRaisesRegex(ValueError, "positive duration"):
+                    build([rec()], BuildOptions(uid_domain="example.org", **kw))
+        build([rec()], BuildOptions(uid_domain="example.org", end_rules=[("Board", {"duration_minutes": 90})]))
+
+    def test_from_dict_rejects_non_numeric_durations(self):
+        for d in ({"default_duration_hours": "x"}, {"default_duration_minutes": None}, {"default_duration_hours": True},
+                  {"default_duration_hours": 1e30}, {"end_rules": ["x"]}, {"end_rules": [{"nomatch": 1}]}):
+            with self.subTest(d):
+                with self.assertRaises(ValueError):
+                    BuildOptions.from_dict(d)
+        o = BuildOptions.from_dict({"default_duration_hours": 1.5})
+        self.assertEqual(o.default_duration, datetime.timedelta(minutes=90))
+
+    def test_prodid_must_be_safe_text(self):
+        for bad in ("a,b", "a;b", "a\\b", 'a"b'):
+            with self.subTest(bad):
+                self.assertTrue(self.bad(prodid=bad).startswith("prodid must be non-empty"))
+        build([rec()], BuildOptions(uid_domain="example.org", prodid="-//Example//Feed 1.0//EN"))
 
     def test_end_rule_basis(self):
         o = BuildOptions.from_dict({"uid_domain": "example.org",
@@ -164,6 +194,16 @@ class Hostile(unittest.TestCase):
         with self.assertRaises(ValueError):
             build([rec(meeting_type="a\r\nATTENDEE:x")], OPTS)
 
+    def test_at6_control_hostiles_in_record_fields(self):
+        h = {"H2": "l1\nl2\r\nl3\rl4", "H3": "t\tx", "H4": "n\x00b\x07e\x1bd\x7f"}
+        for name in ("H2", "H3", "H4"):
+            with self.subTest("meeting_type " + name):
+                with self.assertRaises(RecordError):
+                    build([rec(meeting_type=h[name])], OPTS)
+        with self.subTest("location H2"):
+            with self.assertRaisesRegex(RecordError, "carriage return"):
+                build([rec(location=h["H2"])], OPTS)
+
     def test_exact_folds(self):
         self.assertEqual(len(fold("X:" + "a" * 71 + "é")), 1)
         self.assertEqual(fold("X:" + "a" * 72 + "é"), ["X:" + "a" * 72, " é"])
@@ -174,9 +214,13 @@ class Hostile(unittest.TestCase):
         self.assertEqual([len(p) for p in parts], [75, 75, 2])
         self.assertEqual(parts[-1], " c")
 
-    def test_dtend_basis_is_escaped(self):
+    def test_dtend_basis_must_be_a_safe_token(self):
         data = build([rec(end_time="20:00", end_basis="obs-x")], OPTS)
         self.assertIn(b"-DTEND-BASIS:obs-x\r\n", data)
+        for hostile in ("obs\r\nATTENDEE:x", "a,b;c", "a b"):
+            with self.subTest(hostile):
+                with self.assertRaises(ValueError):
+                    build([rec(end_time="20:00", end_basis=hostile)], OPTS)
 
 
 class Dst(unittest.TestCase):

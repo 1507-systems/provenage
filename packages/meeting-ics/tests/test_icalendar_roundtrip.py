@@ -1,5 +1,4 @@
 """Second, independent parse of built feeds with the test-only `icalendar` library (skipped if not installed)."""
-import datetime
 import unittest
 
 from meeting_ics import BuildOptions, build
@@ -57,8 +56,14 @@ class RoundTrip(unittest.TestCase):
 
     def test_hostile_text(self):
         o = BuildOptions(uid_domain="example.org", calendar_name="a,b;c\\d", calendar_description="x\ny")
-        self.check(build([rec(meeting_type="é" * 100 + ",;", location="中" * 60)], o))
-        self.assertIsInstance(datetime.date.today(), datetime.date)
+        data = build([rec(meeting_type="é" * 100 + ",;", location="中" * 60)], o)
+        self.check(data)
+        cal = parse_ics(data)
+        ev = cal.events[0]
+        self.assertEqual(unescape_text(ev.get("SUMMARY")), "Board " + "é" * 100 + ",;")
+        self.assertEqual(unescape_text(ev.get("LOCATION")), "中" * 60)
+        self.assertEqual(unescape_text(cal.get("X-WR-CALNAME")), "a,b;c\\d")
+        self.assertEqual(unescape_text(cal.get("X-WR-CALDESC")), "x\ny")
 
 
 if __name__ == "__main__":

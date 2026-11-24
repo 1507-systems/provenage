@@ -28,6 +28,7 @@ END_BASIS_RE = r"^[A-Za-z0-9][A-Za-z0-9._-]*$"              # max 64
 URL_RE = r"^https?://[^\s/?#\x00-\x1f\x7f]+[^\s\x00-\x1f\x7f]*$"   # max 2048
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 _BAD_URL_CHAR_RE = re.compile(r"[\s\x00-\x1f\x7f]")
+_SURROGATE_RE = re.compile("[\ud800-\udfff]")  # lone UTF-16 surrogates (JSON "\\ud800"); cannot be encoded as UTF-8
 
 REQUIRED = ("uid_namespace", "record_id", "meeting_type", "date", "start_time", "timezone", "status",
             "retrieved_at")  # plus body_name or body
@@ -128,6 +129,9 @@ class _Rec:
             return self.err(name, "must not be blank") if required else None
         if len(v) > maxlen:
             return self.err(name, "longer than %d characters (got %d)" % (maxlen, len(v)))
+        m = _SURROGATE_RE.search(v)
+        if m:
+            return self.err(name, "contains an invalid character (U+%04X) at position %d" % (ord(m.group()), m.start()))
         for pos, ch in enumerate(v):
             if ch == "\n" and multiline:
                 continue
@@ -156,10 +160,20 @@ class _Rec:
             return None
         if len(v) > MAX_URL:
             return self.err(name, "URL longer than %d characters" % MAX_URL)
+        m = _SURROGATE_RE.search(v)
+        if m:
+            return self.err(name, "contains an invalid character (U+%04X) at position %d" % (ord(m.group()), m.start()))
         if not v.startswith(("http://", "https://")) or _BAD_URL_CHAR_RE.search(v):
             return self.err(name, "must be an http(s) URL, got %s" % _show(v))
         try:
             parts = urlsplit(v)
+        except ValueError:
+            return self.err(name, "URL is malformed: %s" % _show(v))
+        if "\\" in v:
+            return self.err(name, "URL must not contain a backslash: %s" % _show(v))
+        if "@" in parts.netloc:
+            return self.err(name, "URL must not contain a user name or password (@): %s" % _show(v))
+        try:
             if not parts.hostname:
                 return self.err(name, "URL has no host: %s" % _show(v))
             parts.port  # raises ValueError when out of range or not a number
@@ -452,14 +466,16 @@ def validate_records(items):
             item = dataclasses.asdict(item)
         before = len(errs)
         kw = _check_record(item, i, errs)
-        if len(errs) == before:
+        if kw.get("uid_namespace") is not None and kw.get("record_id") is not None:
+            # Runs for every record whose uid_namespace and record_id are valid, even if other fields are not.
             uid = (kw["uid_namespace"], kw["record_id"])
             if uid in used:
                 errs.append(RecordError("[%d].record_id" % i, "duplicate UID: uid_namespace %r + record_id %r is "
                                         "already used by record [%d]" % (uid[0], uid[1], used[uid]), uid[1]))
             else:
                 used[uid] = i
-                out.append(MeetingRecord(**kw))
+                if len(errs) == before:
+                    out.append(MeetingRecord(**kw))
         if len(errs) >= ERROR_CAP:
             if len(errs) > ERROR_CAP or i < len(items) - 1:
                 del errs[ERROR_CAP:]

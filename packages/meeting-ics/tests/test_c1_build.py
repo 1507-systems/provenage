@@ -195,6 +195,25 @@ class Cli(unittest.TestCase):
         self.assertEqual((code, out), (0, "events=1 cancelled=0 sequence_bumped=none\n"))
         self.assertTrue(os.path.exists(out_p) and os.path.exists(led_p))
 
+    def test_no_portal_emits_ambiguity_line(self):
+        self.assertIn("X-MEETING-ICS-AMBIGUITY:no-portal-meeting-page-url", ics(good(links={"portal": ""})))
+        self.assertNotIn("no-portal-meeting-page-url", ics(good()))
+
+    def test_bad_config_values_exit_2_not_traceback(self):
+        inp = self.write("in.json", [good()])
+        for i, cfg in enumerate(({"default_duration_hours": "x"}, {"default_duration_minutes": [1]},
+                                 {"default_duration_hours": 0}, {"end_rules": ["x"]}, {"end_rules": [5]},
+                                 {"end_rules": [["Board", {"duration_minutes": "x"}]]},
+                                 {"end_rules": [["Board", {"duration_minutes": -5}]]}, {"prodid": "a,b"})):
+            with self.subTest(cfg):
+                code, out, err = self.run_cli("build", "--input", inp, "--output", self.path("o%d.ics" % i),
+                                              "--ledger", self.path("l%d.json" % i),
+                                              "--config", self.write("c%d.json" % i, cfg))
+                self.assertEqual((code, out), (2, ""))
+                self.assertTrue(err.startswith("meeting_ics: error: "), err)
+                self.assertNotIn("Traceback", err)
+                self.assertFalse(os.path.exists(self.path("o%d.ics" % i)))
+
     def test_other_errors(self):
         code, _, err = self.run_cli("validate", "--input", self.path("missing.json"))
         self.assertEqual(code, 2)

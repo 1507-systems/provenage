@@ -3,9 +3,10 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from meeting_ics import Ledger
-from meeting_ics.ledger import monotonic_problems
+from meeting_ics.ledger import atomic_write, monotonic_problems
 
 ENTRY = {"critical_hash": "a" * 64, "docs_hash": "b" * 64, "sequence": 2, "last_modified": "2026-01-01T00:00:00Z"}
 
@@ -75,6 +76,43 @@ class Files(unittest.TestCase):
             bad.save(p)
         self.assertEqual(os.listdir(self.dir), ["l.json"])
         self.assertEqual(Ledger.load(p).entries, {"u": entry()})
+
+
+class AtomicWriteSafety(unittest.TestCase):
+    def setUp(self):
+        self._td = tempfile.TemporaryDirectory()
+        self.addCleanup(self._td.cleanup)
+        self.dir = self._td.name
+
+    def test_does_not_follow_symlink_at_old_tmp_name(self):
+        target = os.path.join(self.dir, "victim.txt")
+        with open(target, "w") as f:
+            f.write("keep")
+        out = os.path.join(self.dir, "out.ics")
+        try:
+            os.symlink(target, out + ".tmp")
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks unavailable")
+        atomic_write(out, b"feed")
+        with open(target) as f:
+            self.assertEqual(f.read(), "keep")
+        self.assertFalse(os.path.islink(out))
+        with open(out, "rb") as f:
+            self.assertEqual(f.read(), b"feed")
+
+    def test_unique_temp_name_and_cleanup_on_failure(self):
+        out = os.path.join(self.dir, "out.ics")
+        with mock.patch("os.replace", side_effect=OSError("boom")):
+            with self.assertRaises(OSError):
+                atomic_write(out, b"x")
+        self.assertEqual(os.listdir(self.dir), [])
+        atomic_write(out, b"x")
+        self.assertEqual(os.listdir(self.dir), ["out.ics"])
+
+    def test_output_is_world_readable(self):
+        out = os.path.join(self.dir, "out.ics")
+        atomic_write(out, b"x")
+        self.assertEqual(os.stat(out).st_mode & 0o777, 0o644)
 
 
 class Monotonic(unittest.TestCase):

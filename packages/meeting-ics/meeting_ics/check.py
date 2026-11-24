@@ -129,13 +129,16 @@ def parse_ics(data: bytes) -> Component:
     physical = data.decode("utf-8").split("\r\n")[:-1]
     # Unfold: a physical line starting with a space or tab continues the previous one.
     logical: List[Tuple[int, str]] = []
+    pieces: List[List[str]] = []  # pieces[i] are the parts of logical[i]; joined once, so unfolding is linear
     for n, ln in enumerate(physical, 1):
         if ln[:1] in (" ", "\t"):
             if not logical:
                 raise IcsFormatError("line %d: continuation line with nothing to continue" % n)
-            logical[-1] = (logical[-1][0], logical[-1][1] + ln[1:])
+            pieces[-1].append(ln[1:])
         else:
             logical.append((n, ln))
+            pieces.append([ln])
+    logical = [(n, "".join(p)) for (n, _), p in zip(logical, pieces)]
     root: Optional[Component] = None
     stack: List[Component] = []
     for n, ln in logical:

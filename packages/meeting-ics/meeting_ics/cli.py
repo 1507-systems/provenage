@@ -137,7 +137,7 @@ def main(argv=None):
             print(err.line(), file=sys.stderr)
         print("meeting_ics: %d error(s); %s" % (len(e.errors), a.tail), file=sys.stderr)
         return 2
-    except (ValueError, RuntimeError, OSError, NotImplementedError) as e:
+    except (ValueError, TypeError, RuntimeError, OSError, NotImplementedError) as e:
         print("meeting_ics: error: %s" % e, file=sys.stderr)
         return 2
 

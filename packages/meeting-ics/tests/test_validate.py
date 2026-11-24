@@ -280,5 +280,47 @@ class LoadInput(unittest.TestCase):
         self.assertIn("cannot read", cm.exception.message)
 
 
+class Wave1Followups(Base):
+    def test_lone_surrogates_rejected_in_text_and_url(self):
+        for ch in ("\ud800", "\udbff", "\udc00", "\udfff"):
+            self.E(self.with_(meeting_type="a" + ch + "b"), "[0].meeting_type", "invalid character (U+%04X)" % ord(ch))
+            self.E(self.with_(location=ch), "[0].location", "invalid character")
+            self.E(self.with_(links={"portal": "https://x/" + ch}), "[0].links.portal", "invalid character")
+
+    def test_surrogate_via_json_escape_fails_validate_not_build(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "in.json")
+            data = json.dumps([good()]).replace("Town Hall", "T\\ud800")
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(data)
+            with self.assertRaises(RecordError) as cm:
+                load_input(p)
+        self.assertIn("invalid character (U+D800)", cm.exception.errors[0].message)
+
+    def test_duplicate_uid_reported_alongside_other_errors(self):
+        for recs in ([good(), self.with_(date="x")[0]], [self.with_(date="x")[0], good()]):
+            with self.assertRaises(RecordError) as cm:
+                P(recs)
+            msgs = [(e.path, e.message) for e in cm.exception.errors]
+            self.assertEqual(len(msgs), 2, msgs)
+            self.assertTrue(any(p == "[1].record_id" and "duplicate UID" in m for p, m in msgs), msgs)
+            self.assertTrue(any(p.endswith(".date") for p, _ in msgs), msgs)
+
+    def test_duplicate_not_reported_when_uid_fields_invalid(self):
+        with self.assertRaises(RecordError) as cm:
+            P(self.with_(record_id="bad id!") * 2)
+        self.assertFalse(any("duplicate" in e.message for e in cm.exception.errors))
+
+    def test_malformed_url_is_not_an_invalid_port(self):
+        self.E(self.with_(links={"portal": "https://[::1/"}), "[0].links.portal", "URL is malformed")
+
+    def test_url_userinfo_and_backslash_rejected(self):
+        self.E(self.with_(links={"portal": "https://u:p@x/"}), "[0].links.portal", "user name or password")
+        self.E(self.with_(links={"portal": "https://u@x/"}), "[0].links.portal", "user name or password")
+        self.E(self.with_(links={"portal": "https://x\\@evil/"}), "[0].links.portal", "backslash")
+        self.E(self.with_(links={"portal": "https://x/a\\b"}), "[0].links.portal", "backslash")
+        self.assertEqual(P(self.with_(links={"portal": "https://x/a@b"}))[0].links["portal"], "https://x/a@b")
+
+
 if __name__ == "__main__":
     unittest.main()

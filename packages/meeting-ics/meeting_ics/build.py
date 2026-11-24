@@ -48,22 +48,37 @@ class BuildOptions:
         """Options from a JSON object. JSON null becomes None. Unknown keys raise ValueError, so a misspelt or
         stray key (a pasted token, say) fails loudly instead of being ignored."""
         d = dict(d)
-        if "default_duration_minutes" in d:
-            d["default_duration"] = datetime.timedelta(minutes=d.pop("default_duration_minutes"))
-        if "default_duration_hours" in d:
-            d["default_duration"] = datetime.timedelta(hours=d.pop("default_duration_hours"))
+        for key, unit in (("default_duration_minutes", "minutes"), ("default_duration_hours", "hours")):
+            if key in d:
+                n = d.pop(key)
+                if isinstance(n, bool) or not isinstance(n, (int, float)):
+                    raise ValueError("%s must be a number, got %r" % (key, n))
+                try:
+                    d["default_duration"] = datetime.timedelta(**{unit: n})
+                except (OverflowError, ValueError):
+                    raise ValueError("%s is out of range: %r" % (key, n)) from None
         known = {f.name for f in fields(cls)}
         unknown = sorted(str(k) for k in d if k not in known)
         if unknown:
             raise ValueError("unknown option(s): " + ", ".join(unknown))
-        d["end_rules"] = [tuple(r) if isinstance(r, (list, tuple)) else (r["match"], r)
-                          for r in (d.get("end_rules") or [])]
+        rules = []
+        for r in (d.get("end_rules") or []):
+            if isinstance(r, (list, tuple)):
+                rules.append(tuple(r))
+            elif isinstance(r, dict) and "match" in r:
+                rules.append((r["match"], r))
+            else:
+                raise ValueError("each end_rules entry must be [substring, rule] or an object with a \"match\" "
+                                 "key, got %r" % (r,))
+        d["end_rules"] = rules
         return cls(**d)
 
     def validate(self):
         """Raise ValueError for an option that could break the feed or inject lines into it."""
-        if not isinstance(self.prodid, str) or not self.prodid or _CONTROL_RE.search(self.prodid):
-            raise ValueError("prodid must be non-empty text without control characters")
+        if (not isinstance(self.prodid, str) or not self.prodid or _CONTROL_RE.search(self.prodid)
+                or any(c in self.prodid for c in ',;\\"')):
+            raise ValueError("prodid must be non-empty text without control characters or any of , ; \\ \"")
+        _check_duration("default_duration", self.default_duration)
         if not isinstance(self.uid_domain, str) or not _UID_DOMAIN_RE.fullmatch(self.uid_domain):
             raise ValueError("uid_domain must be a host name like example.org, got %r" % (self.uid_domain,))
         if not isinstance(self.x_prefix, str) or not _X_PREFIX_RE.fullmatch(self.x_prefix):
@@ -82,11 +97,27 @@ class BuildOptions:
                 raise ValueError("%s must be text or null" % name)
         for i, item in enumerate(self.end_rules):
             rule = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else None
+            if isinstance(rule, datetime.timedelta):
+                _check_duration("end_rules[%d]" % i, rule)
+            elif isinstance(rule, dict) and "duration_minutes" in rule:
+                _check_duration("end_rules[%d].duration_minutes" % i, rule["duration_minutes"], minutes=True)
             basis = rule.get("basis") if isinstance(rule, dict) else None
             if basis is not None and not (isinstance(basis, str) and len(basis) <= MAX_BASIS
                                           and _BASIS_RE.fullmatch(basis)):
                 raise ValueError("end_rules[%d].basis must match [A-Za-z0-9][A-Za-z0-9._-]* (max %d), got %r"
                                  % (i, MAX_BASIS, basis))
+
+
+def _check_duration(what, value, minutes=False):
+    """A duration must be a positive number (a timedelta unless minutes=True), or DTEND would not follow DTSTART."""
+    if minutes:
+        ok = isinstance(value, (int, float)) and not isinstance(value, bool) and value == value and value > 0
+        if ok and value > 24 * 60 * 366:
+            ok = False
+    else:
+        ok = isinstance(value, datetime.timedelta) and value > datetime.timedelta(0)
+    if not ok:
+        raise ValueError("%s must be a positive duration, got %r" % (what, value))
 
 
 def _duration_basis(delta):
