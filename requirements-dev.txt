@@ -1,3 +1,5 @@
 ruff
 pytest
 pip-audit
+# Test-only: an independent iCalendar parser for the round-trip test. Not a runtime dependency of meeting-ics.
+icalendar==6.3.2

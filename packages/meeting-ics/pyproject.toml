@@ -38,4 +38,4 @@ meeting-ics = "meeting_ics.cli:main"
 include = ["meeting_ics*"]
 
 [tool.setuptools.package-data]
-meeting_ics = ["py.typed"]
+meeting_ics = ["py.typed", "adapters/*.csv"]

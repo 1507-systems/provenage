@@ -2,7 +2,8 @@
 
 legacy_records.json is rebuilt with default options (plus uid_domain) and a fresh Ledger; the bytes must match
 legacy_feed.ics exactly and the ledger entries must equal legacy_ledger.json. Later changes must keep this passing
-(passing explicit options that turn the new header defaults off) so existing consumers' feeds do not drift.
+(built with method=None and refresh_interval=None, which turn the new header defaults off) so existing
+consumers' feeds do not drift.
 """
 import json
 import os
@@ -23,7 +24,7 @@ class LegacyFixture(unittest.TestCase):
         with open(_path("legacy_records.json"), encoding="utf-8") as f:
             records = records_from_json(json.load(f))
         ledger = Ledger()
-        data = build(records, BuildOptions(uid_domain="example.org"), ledger)
+        data = build(records, BuildOptions(uid_domain="example.org", method=None, refresh_interval=None), ledger)
         with open(_path("legacy_feed.ics"), "rb") as f:
             self.assertEqual(data, f.read())
         with open(_path("legacy_ledger.json"), encoding="utf-8") as f:

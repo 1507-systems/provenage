@@ -5,9 +5,13 @@ Per UID: critical_hash, docs_hash, sequence, last_modified.
   if either hash differs: sequence += 1, last_modified = this run's DTSTAMP. Otherwise unchanged.
   UIDs absent from the input stay in the ledger (never pruned).
 """
+import datetime
 import hashlib
 import json
 import os
+from typing import Dict, List
+
+_KEYS = ("critical_hash", "docs_hash", "sequence", "last_modified")
 
 
 def sha(obj):
@@ -15,23 +19,101 @@ def sha(obj):
                           .encode("utf-8")).hexdigest()
 
 
+def atomic_write(path, data):
+    """Write bytes to path + '.tmp', fsync, then os.replace, so a reader never sees a half-written file. The
+    temporary file is removed if anything fails."""
+    path = os.fspath(path)
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _bad(where, reason):
+    return ValueError("malformed ledger: %s: %s" % (where, reason))
+
+
+def _check_entry(uid, entry):
+    if not isinstance(entry, dict):
+        raise _bad(uid, "entry must be a JSON object")
+    for key in _KEYS:
+        if key not in entry:
+            raise _bad(uid, "missing key %s" % key)
+    for key in ("critical_hash", "docs_hash"):
+        if not isinstance(entry[key], str):
+            raise _bad(uid, "%s must be a string" % key)
+    seq = entry["sequence"]
+    if isinstance(seq, bool) or not isinstance(seq, int) or seq < 0:
+        raise _bad(uid, "sequence must be an integer >= 0, got %r" % (seq,))
+    lm = entry["last_modified"]
+    try:
+        if not isinstance(lm, str):
+            raise ValueError
+        datetime.datetime.strptime(lm, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        raise _bad(uid, "last_modified must be a UTC timestamp YYYY-MM-DDTHH:MM:SSZ, got %r" % (lm,)) from None
+
+
+def monotonic_problems(old, new) -> List[str]:
+    """Problems if `new` is not a safe successor of `old` (a Ledger or an entries dict): a UID missing from the
+    new ledger, or a SEQUENCE that went down. Either means a lost or reset ledger and must stop a publish."""
+    o = getattr(old, "entries", old)
+    n = getattr(new, "entries", new)
+    problems = []
+    for uid in sorted(o):
+        if uid not in n:
+            problems.append("uid %s missing from new ledger" % uid)
+        elif n[uid]["sequence"] < o[uid]["sequence"]:
+            problems.append("uid %s sequence decreased %d -> %d" % (uid, o[uid]["sequence"], n[uid]["sequence"]))
+    return problems
+
+
 class Ledger:
     def __init__(self, entries=None):
-        self.entries = entries if entries is not None else {}
+        self.entries: Dict[str, dict] = entries if entries is not None else {}
+
+    @classmethod
+    def loads(cls, data: bytes):
+        """Parse ledger bytes. Anything that is not a well-formed ledger raises ValueError ('malformed ledger:
+        ...'): a bad ledger must never be read as an empty one, because that would reset every SEQUENCE."""
+        refuse = "; refusing to start a fresh ledger because that would reset SEQUENCE"
+        try:
+            obj = json.loads(data.decode("utf-8"))
+        except UnicodeDecodeError as e:
+            raise _bad("<root>", "not valid UTF-8 (%s)%s" % (e, refuse)) from None
+        except ValueError as e:
+            raise _bad("<root>", "not valid JSON (%s)%s" % (e, refuse)) from None
+        if not isinstance(obj, dict):
+            raise _bad("<root>", "top level must be a JSON object")
+        for uid, entry in obj.items():
+            _check_entry(uid, entry)
+        return cls(obj)
 
     @classmethod
     def load(cls, path):
+        """A missing file is a fresh ledger; any other problem (including an empty file) raises."""
         try:
-            with open(path, encoding="utf-8") as f:
-                return cls(json.load(f))
+            with open(path, "rb") as f:
+                data = f.read()
         except FileNotFoundError:
             return cls()
+        return cls.loads(data)
+
+    def dumps(self) -> bytes:
+        return (json.dumps(self.entries, indent=1, sort_keys=True) + "\n").encode("utf-8")
 
     def save(self, path):
-        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
-            json.dump(self.entries, f, indent=1, sort_keys=True)
-            f.write("\n")
+        atomic_write(path, self.dumps())
 
     def update(self, uid, critical_hash, docs_hash, stamp):
         """Record this run's hashes for uid. Returns (entry, bumped)."""
