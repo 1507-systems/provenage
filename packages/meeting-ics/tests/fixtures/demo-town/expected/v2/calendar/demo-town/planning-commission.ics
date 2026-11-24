@@ -1,0 +1,89 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Provenage//meeting_ics demo-town//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Demo Town: Planning Commission
+X-WR-CALDESC:Fictional demonstration feed. Demo Town is not a real place an
+ d these meetings do not exist. Built with Provenage meeting_ics.
+X-WR-TIMEZONE:America/Chicago
+REFRESH-INTERVAL;VALUE=DURATION:PT1H
+X-PUBLISHED-TTL:PT1H
+BEGIN:VTIMEZONE
+TZID:America/Chicago
+BEGIN:STANDARD
+DTSTART:20071104T020000
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0600
+TZNAME:CST
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:20070311T020000
+TZOFFSETFROM:-0600
+TZOFFSETTO:-0500
+TZNAME:CDT
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:demo-town-pc-201@api.1507.systems
+DTSTAMP:20261120T150000Z
+DTSTART;TZID=America/Chicago:20261007T180000
+DTEND;TZID=America/Chicago:20261007T210000
+SUMMARY:Planning Commission Regular Meeting
+DESCRIPTION:Portal: https://demo-town.example/meetings/pc-201\nAgenda: http
+ s://demo-town.example/meetings/pc-201/agenda.pdf\nMinutes: https://demo-to
+ wn.example/meetings/pc-201/minutes.pdf\nVideo: https://video.example.com/p
+ c-201
+LOCATION:Demo Town Hall\, Room 2B\; 100 Main Street\, Demo Town
+URL:https://demo-town.example/meetings/pc-201
+STATUS:CONFIRMED
+X-PROVENAGE-LIFECYCLE:completed
+SEQUENCE:1
+LAST-MODIFIED:20261120T150000Z
+X-PROVENAGE-DTEND-BASIS:default-duration-3h-assumed
+END:VEVENT
+BEGIN:VEVENT
+UID:demo-town-pc-202@api.1507.systems
+DTSTAMP:20261120T150000Z
+DTSTART;TZID=America/Chicago:20261104T180000
+DTEND;TZID=America/Chicago:20261104T210000
+SUMMARY:Planning Commission Regular Meeting
+DESCRIPTION:Portal: https://demo-town.example/meetings/pc-202
+LOCATION:Demo Town Hall\, Room 2B\; 100 Main Street\, Demo Town
+URL:https://demo-town.example/meetings/pc-202
+STATUS:CANCELLED
+SEQUENCE:1
+LAST-MODIFIED:20261120T150000Z
+X-PROVENAGE-DTEND-BASIS:default-duration-3h-assumed
+END:VEVENT
+BEGIN:VEVENT
+UID:demo-town-pc-203@api.1507.systems
+DTSTAMP:20261120T150000Z
+DTSTART;TZID=America/Chicago:20261118T180000
+DTEND;TZID=America/Chicago:20261118T210000
+SUMMARY:Postponed: Planning Commission Regular Meeting
+DESCRIPTION:Portal: https://demo-town.example/meetings/pc-203
+LOCATION:Demo Town Hall\, Room 2B\; 100 Main Street\, Demo Town
+URL:https://demo-town.example/meetings/pc-203
+STATUS:TENTATIVE
+X-PROVENAGE-LIFECYCLE:postponed
+SEQUENCE:1
+LAST-MODIFIED:20261120T150000Z
+X-PROVENAGE-DTEND-BASIS:default-duration-3h-assumed
+END:VEVENT
+BEGIN:VEVENT
+UID:demo-town-pc-204@api.1507.systems
+DTSTAMP:20261120T150000Z
+DTSTART;TZID=America/Chicago:20261202T180000
+DTEND;TZID=America/Chicago:20261202T210000
+SUMMARY:Planning Commission Regular Meeting
+STATUS:CONFIRMED
+SEQUENCE:0
+LAST-MODIFIED:20261001T150000Z
+X-PROVENAGE-DTEND-BASIS:default-duration-3h-assumed
+X-PROVENAGE-AMBIGUITY:no-portal-meeting-page-url
+X-PROVENAGE-AMBIGUITY:no-location
+END:VEVENT
+END:VCALENDAR

@@ -1,0 +1,10 @@
+{
+ "prodid": "-//Provenage//meeting_ics demo-town//EN",
+ "uid_domain": "api.1507.systems",
+ "x_prefix": "X-PROVENAGE",
+ "default_duration_hours": 3,
+ "end_rules": [{"match": "study session", "duration_minutes": 90, "basis": "rule-study-session-90m"}],
+ "refresh_interval": "PT1H",
+ "calendar_description": "Fictional demonstration feed. Demo Town is not a real place and these meetings do not exist. Built with Provenage meeting_ics.",
+ "jurisdictions": {"demo-town": {"name": "Demo Town"}}
+}

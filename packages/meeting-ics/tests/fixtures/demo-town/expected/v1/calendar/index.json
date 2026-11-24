@@ -1,0 +1,50 @@
+{
+ "feeds": [
+  {
+   "body": "all",
+   "body_name": null,
+   "cancelled": 1,
+   "events": 11,
+   "href": "demo-town/all.ics",
+   "jurisdiction": "demo-town",
+   "key": "calendar/demo-town/all.ics",
+   "kind": "combined",
+   "sha256": "a75daa926ece5ec6280fe78cc76967922cebf8596d436369088911fc8e215cf3",
+   "size": 6601,
+   "title": "Demo Town: All meetings"
+  },
+  {
+   "body": "planning-commission",
+   "body_name": "Planning Commission",
+   "cancelled": 0,
+   "events": 4,
+   "href": "demo-town/planning-commission.ics",
+   "jurisdiction": "demo-town",
+   "key": "calendar/demo-town/planning-commission.ics",
+   "kind": "body",
+   "sha256": "eb04ff760559a7d03cb5984b6ed906761ebf1d49032ad69114854dad7969a364",
+   "size": 2791,
+   "title": "Demo Town: Planning Commission"
+  },
+  {
+   "body": "town-council",
+   "body_name": "Town Council",
+   "cancelled": 1,
+   "events": 7,
+   "href": "demo-town/town-council.ics",
+   "jurisdiction": "demo-town",
+   "key": "calendar/demo-town/town-council.ics",
+   "kind": "body",
+   "sha256": "a082b2f8468d11ce3d43faf1897a9d002256a8c2f9d327f5bdbe0c0da2c5f044",
+   "size": 4562,
+   "title": "Demo Town: Town Council"
+  }
+ ],
+ "generated_at": "2026-10-01T15:00:00Z",
+ "schema": "provenage-calendar-index/1",
+ "totals": {
+  "cancelled": 1,
+  "events": 11,
+  "feeds": 3
+ }
+}

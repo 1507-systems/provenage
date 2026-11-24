@@ -1,0 +1,130 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Provenage//meeting_ics demo-town//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Demo Town: Town Council
+X-WR-CALDESC:Fictional demonstration feed. Demo Town is not a real place an
+ d these meetings do not exist. Built with Provenage meeting_ics.
+X-WR-TIMEZONE:America/Chicago
+REFRESH-INTERVAL;VALUE=DURATION:PT1H
+X-PUBLISHED-TTL:PT1H
+BEGIN:VTIMEZONE
+TZID:America/Chicago
+BEGIN:STANDARD
+DTSTART:20071104T020000
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0600
+TZNAME:CST
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:20070311T020000
+TZOFFSETFROM:-0600
+TZOFFSETTO:-0500
+TZNAME:CDT
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:demo-town-tc-101@api.1507.systems
+DTSTAMP:20261001T150000Z
+DTSTART;TZID=America/Chicago:20261013T183000
+DTEND;TZID=America/Chicago:20261013T213000
+SUMMARY:Town Council Regular Meeting
+DESCRIPTION:Portal: https://demo-town.example/meetings/tc-101\nAgenda: http
+ s://demo-town.example/meetings/tc-101/agenda.pdf
+LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
+URL:https://demo-town.example/meetings/tc-101
+STATUS:CONFIRMED
+SEQUENCE:0
+LAST-MODIFIED:20261001T150000Z
+X-PROVENAGE-DTEND-BASIS:default-duration-3h-assumed
+END:VEVENT
+BEGIN:VEVENT
+UID:demo-town-tc-102@api.1507.systems
+DTSTAMP:20261001T150000Z
+DTSTART;TZID=America/Chicago:20261020T170000
+DTEND;TZID=America/Chicago:20261020T200000
+SUMMARY:Town Council Special Meeting
+DESCRIPTION:Portal: https://demo-town.example/meetings/tc-102
+LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
+URL:https://demo-town.example/meetings/tc-102
+STATUS:CANCELLED
+SEQUENCE:0
+LAST-MODIFIED:20261001T150000Z
+X-PROVENAGE-DTEND-BASIS:default-duration-3h-assumed
+END:VEVENT
+BEGIN:VEVENT
+UID:demo-town-tc-103@api.1507.systems
+DTSTAMP:20261001T150000Z
+DTSTART;TZID=America/Chicago:20261027T183000
+DTEND;TZID=America/Chicago:20261027T213000
+SUMMARY:Town Council Regular Meeting
+DESCRIPTION:Portal: https://demo-town.example/meetings/tc-103\nAgenda: http
+ s://demo-town.example/meetings/tc-103/agenda.pdf
+LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
+URL:https://demo-town.example/meetings/tc-103
+STATUS:CONFIRMED
+SEQUENCE:0
+LAST-MODIFIED:20261001T150000Z
+X-PROVENAGE-DTEND-BASIS:default-duration-3h-assumed
+END:VEVENT
+BEGIN:VEVENT
+UID:demo-town-tc-104@api.1507.systems
+DTSTAMP:20261001T150000Z
+DTSTART;TZID=America/Chicago:20261103T170000
+DTEND;TZID=America/Chicago:20261103T183000
+SUMMARY:Town Council Study Session
+DESCRIPTION:Portal: https://demo-town.example/meetings/tc-104
+LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
+URL:https://demo-town.example/meetings/tc-104
+STATUS:CONFIRMED
+SEQUENCE:0
+LAST-MODIFIED:20261001T150000Z
+X-PROVENAGE-DTEND-BASIS:rule-study-session-90m
+END:VEVENT
+BEGIN:VEVENT
+UID:demo-town-tc-105@api.1507.systems
+DTSTAMP:20261001T150000Z
+DTSTART;TZID=America/Chicago:20261110T183000
+DTEND;TZID=America/Chicago:20261110T201500
+SUMMARY:Town Council Regular Meeting
+DESCRIPTION:Portal: https://demo-town.example/meetings/tc-105
+LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
+URL:https://demo-town.example/meetings/tc-105
+STATUS:CONFIRMED
+SEQUENCE:0
+LAST-MODIFIED:20261001T150000Z
+X-PROVENAGE-DTEND-BASIS:source-observed
+END:VEVENT
+BEGIN:VEVENT
+UID:demo-town-tc-106@api.1507.systems
+DTSTAMP:20261001T150000Z
+DTSTART;TZID=America/Chicago:20261124T183000
+DTEND;TZID=America/Chicago:20261124T213000
+SUMMARY:Town Council Regular Meeting
+DESCRIPTION:Portal: https://demo-town.example/meetings/tc-106\nJoin online:
+  https://video.example.com/j/106\nDial-in: +1 555 0100\, ID 106
+LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
+URL:https://demo-town.example/meetings/tc-106
+STATUS:CONFIRMED
+SEQUENCE:0
+LAST-MODIFIED:20261001T150000Z
+X-PROVENAGE-DTEND-BASIS:default-duration-3h-assumed
+END:VEVENT
+BEGIN:VEVENT
+UID:demo-town-tc-107@api.1507.systems
+DTSTAMP:20261001T150000Z
+DTSTART;TZID=America/Chicago:20261208T183000
+DTEND;TZID=America/Chicago:20261208T213000
+SUMMARY:Town Council Regular Meeting
+DESCRIPTION:Portal: https://demo-town.example/meetings/tc-107
+LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
+URL:https://demo-town.example/meetings/tc-107
+STATUS:CONFIRMED
+SEQUENCE:0
+LAST-MODIFIED:20261001T150000Z
+X-PROVENAGE-DTEND-BASIS:default-duration-3h-assumed
+END:VEVENT
+END:VCALENDAR
