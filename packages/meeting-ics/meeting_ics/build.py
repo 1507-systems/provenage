@@ -109,15 +109,17 @@ class BuildOptions:
 
 
 def _check_duration(what, value, minutes=False):
-    """A duration must be a positive number (a timedelta unless minutes=True), or DTEND would not follow DTSTART."""
+    """A duration must be a whole number of minutes, 1 minute to 366 days (a timedelta unless minutes=True).
+    DTEND is written to whole seconds, so anything shorter or fractional could give DTEND == DTSTART."""
     if minutes:
-        ok = isinstance(value, (int, float)) and not isinstance(value, bool) and value == value and value > 0
-        if ok and value > 24 * 60 * 366:
-            ok = False
+        ok = (isinstance(value, (int, float)) and not isinstance(value, bool) and value == value
+              and 1 <= value <= 24 * 60 * 366 and float(value).is_integer())
     else:
-        ok = isinstance(value, datetime.timedelta) and value > datetime.timedelta(0)
+        ok = (isinstance(value, datetime.timedelta)
+              and datetime.timedelta(minutes=1) <= value <= datetime.timedelta(days=366)
+              and value.total_seconds() % 60 == 0)
     if not ok:
-        raise ValueError("%s must be a positive duration, got %r" % (what, value))
+        raise ValueError("%s must be a positive whole number of minutes (at most 366 days), got %r" % (what, value))
 
 
 def _duration_basis(delta):

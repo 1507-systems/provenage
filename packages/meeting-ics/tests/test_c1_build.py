@@ -204,7 +204,8 @@ class Cli(unittest.TestCase):
         for i, cfg in enumerate(({"default_duration_hours": "x"}, {"default_duration_minutes": [1]},
                                  {"default_duration_hours": 0}, {"end_rules": ["x"]}, {"end_rules": [5]},
                                  {"end_rules": [["Board", {"duration_minutes": "x"}]]},
-                                 {"end_rules": [["Board", {"duration_minutes": -5}]]}, {"prodid": "a,b"})):
+                                 {"end_rules": [["Board", {"duration_minutes": -5}]]}, {"prodid": "a,b"},
+                                 {"default_duration_minutes": 0.001}, {"default_duration_hours": 1e8})):
             with self.subTest(cfg):
                 code, out, err = self.run_cli("build", "--input", inp, "--output", self.path("o%d.ics" % i),
                                               "--ledger", self.path("l%d.json" % i),

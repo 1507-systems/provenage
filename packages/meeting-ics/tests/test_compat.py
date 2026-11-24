@@ -89,9 +89,13 @@ class OptionsValidation(unittest.TestCase):
                    {"end_rules": [("Board", {"duration_minutes": "30"})]},
                    {"end_rules": [("Board", {"duration_minutes": True})]},
                    {"end_rules": [("Board", {"duration_minutes": float("nan")})]},
-                   {"end_rules": [("Board", datetime.timedelta(0))]}):
+                   {"end_rules": [("Board", datetime.timedelta(0))]},
+                   {"end_rules": [("Board", {"duration_minutes": 0.0001})]},
+                   {"end_rules": [("Board", {"duration_minutes": 0.5})]},
+                   {"default_duration": datetime.timedelta(seconds=30)},
+                   {"default_duration": datetime.timedelta(milliseconds=1)}):
             with self.subTest(kw):
-                with self.assertRaisesRegex(ValueError, "positive duration"):
+                with self.assertRaisesRegex(ValueError, "positive whole number of minutes"):
                     build([rec()], BuildOptions(uid_domain="example.org", **kw))
         build([rec()], BuildOptions(uid_domain="example.org", end_rules=[("Board", {"duration_minutes": 90})]))
 
