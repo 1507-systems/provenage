@@ -17,6 +17,7 @@ License: Apache-2.0 (see the repository root).
 - `ledger.py` SEQUENCE ledger: strict load, atomic save, `monotonic_problems`
 - `check.py` strict `.ics` parser and validator (`parse_ics`, `unescape_text`, `validate`), used by `check-feed`
 - `build.py` `build(records, options) -> bytes`
+- `feedset.py` `build_feedset(...)`: per-body feeds, a combined feed per jurisdiction and `index.json` (`build-set`)
 - `cli.py` / `__main__.py` command line
 - `adapters/primegov_normalized.py` the only PrimeGov-aware code
 - `adapters/csv_template.csv` the CSV header row printed by `meeting_ics template`
@@ -144,6 +145,23 @@ CSV input template. The template file ships with the package; the CSV adapter th
 
 `build` writes the `.ics` and then the ledger, each atomically (a `.tmp` file, then rename), and prints a warning
 to stderr when `uid_domain` is still the placeholder `example.invalid`; UIDs are permanent once published.
+
+### Feed sets (`build-set`)
+
+    python3 -m meeting_ics build-set --input records.json --config set.json --ledger ledger.json --out out/
+
+Every record needs `jurisdiction_slug` and `body_slug` (lowercase letters, digits and single hyphens; `all` is
+reserved). The command writes `out/calendar/<jurisdiction>/<body>.ics` for each body, `out/calendar/<jurisdiction>/all.ics`
+with every meeting of the jurisdiction, and `out/calendar/index.json` (schema in `docs/CALENDAR.md`). Meetings are
+sorted by date, start time and UID, so the output does not depend on input order and a rerun is byte-identical.
+
+`--config` takes the usual build options and must set `uid_domain`; it may also set
+`"jurisdictions": {"demo-town": {"name": "Demo Town"}}`, which gives the feed titles `Demo Town: <body name>` and
+`Demo Town: All meetings` (the slug is used when no name is given). `calendar_name` is not allowed. `--adapter` and
+`--uid-namespace` work as for `build`. One ledger covers the whole set, so a meeting has the same UID and SEQUENCE in
+its body feed and in `all.ics`; subscribing to both shows each meeting twice. Every built feed is run through
+`check-feed` before anything is written; `out/calendar` must be empty unless you pass `--overwrite`, and the ledger
+is saved last. Stdout is `feeds=N events=N cancelled=N sequence_bumped=<uids|none>`.
 
 ### SEQUENCE ledger
 

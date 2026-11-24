@@ -17,6 +17,16 @@
 
 ### Added
 
+- Feed sets: `meeting_ics build-set --input IN --config SET.json --ledger LEDGER --out DIR [--overwrite]
+  [--adapter NAME --uid-namespace NS]` and `meeting_ics.feedset` (`build_feedset`, `write_feedset`,
+  `load_set_config`, `encode_index`). Records are grouped by `jurisdiction_slug` and `body_slug` into
+  `calendar/<j>/<b>.ics`, a combined `calendar/<j>/all.ics` and `calendar/index.json` (schema
+  `provenage-calendar-index/1`, documented in `docs/CALENDAR.md`). Records are sorted by (date, start_time, UID);
+  one ledger covers the set; reruns are byte-identical. Every built feed is checked with `check.validate` before
+  anything is written, and `write_feedset` refuses a symlinked `calendar` directory and any target that resolves
+  outside the output directory. `uid_domain` is required, `calendar_name` is rejected, and the body slug `all` is
+  reserved.
+
 - Input contract and validation (`meeting_ics/validate.py`). Every record is checked before a build, all
   problems are reported together as `<path>: <message>` lines, and nothing is written on error.
 - `meeting_ics validate --input FILE [--adapter NAME --uid-namespace NS]`: checks an input file and prints
