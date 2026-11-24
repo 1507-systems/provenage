@@ -17,6 +17,11 @@
 
 ### Added
 
+- CSV adapter `--adapter csv_template` (`meeting_ics/adapters/csv_template.py`) for `build`, `build-set` and
+  `validate`, reading the shipped template (`meeting_ics template`). It trims cells, normalizes times
+  (`H:MM`, `HH:MM:00`), lowercases status (`canceled` is `cancelled`), skips blank rows and `#` rows/columns, and
+  hands each row to the shared validator; errors carry `row N.<column>` paths and are all reported at once.
+  New flag `--retrieved-at TS|now` (csv_template only) supplies `retrieved_at` for rows that leave it blank.
 - Feed sets: `meeting_ics build-set --input IN --config SET.json --ledger LEDGER --out DIR [--overwrite]
   [--adapter NAME --uid-namespace NS]` and `meeting_ics.feedset` (`build_feedset`, `write_feedset`,
   `load_set_config`, `encode_index`). Records are grouped by `jurisdiction_slug` and `body_slug` into

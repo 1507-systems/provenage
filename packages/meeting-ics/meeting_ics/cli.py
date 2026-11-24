@@ -1,12 +1,15 @@
 """CLI: python3 -m meeting_ics <command>
 
   build     --input IN --output OUT --ledger LEDGER [--config JSON] [--adapter NAME --uid-namespace NS]
+            [--retrieved-at TS|now]
   build-set --input IN --config SET.json --ledger LEDGER --out DIR [--overwrite] [--adapter NAME --uid-namespace NS]
-  validate  --input IN [--adapter NAME --uid-namespace NS]
+            [--retrieved-at TS|now]
+  validate  --input IN [--adapter NAME --uid-namespace NS] [--retrieved-at TS|now]
   check-feed FILE [--expect-events N]
   template  [--output PATH]
 
---uid-namespace is required with --adapter.
+--uid-namespace is required with --adapter. --retrieved-at (UTC YYYY-MM-DDTHH:MM:SSZ, or now) fills blank
+retrieved_at cells and is valid only with --adapter csv_template.
 --input is a records JSON (list or {"records": [...], "schema_version": 1}) unless --adapter names a module in
 meeting_ics.adapters (e.g. a module you wrote), in which case it is that source's file.
 --config is a JSON object of BuildOptions fields (prodid, uid_domain, default_duration_hours|_minutes, end_rules,
@@ -24,6 +27,7 @@ Exit codes: 0 ok, 2 any error (invalid input, unreadable file, bad usage). Nothi
 Input problems print one `<path>: <message>` line each to stderr, then a summary line.
 """
 import argparse
+import datetime
 import importlib
 import importlib.resources as resources
 import json
@@ -36,8 +40,11 @@ from .ledger import Ledger, atomic_write
 from .validate import RecordError, load_input, validate_records
 
 
-def load_records(input_path, adapter=None, uid_namespace=None):
-    """Records from a generic JSON input, or from an adapter module. Raises RecordError on bad generic input."""
+def load_records(input_path, adapter=None, uid_namespace=None, retrieved_at=None):
+    """Records from a generic JSON input, or from an adapter module. Raises RecordError on bad generic input.
+    retrieved_at ("now" or a UTC stamp) is only for the csv_template adapter."""
+    if retrieved_at is not None and adapter != "csv_template":
+        raise ValueError("--retrieved-at applies only to --adapter csv_template")
     if not adapter:
         return load_input(input_path)
     if not uid_namespace:
@@ -51,11 +58,15 @@ def load_records(input_path, adapter=None, uid_namespace=None):
         if e.name == name:
             raise ValueError("unknown adapter %r" % adapter) from None
         raise
-    return mod.load(input_path, uid_namespace=uid_namespace)
+    if retrieved_at is None:
+        return mod.load(input_path, uid_namespace=uid_namespace)
+    if retrieved_at == "now":
+        retrieved_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return mod.load(input_path, uid_namespace=uid_namespace, retrieved_at=retrieved_at)
 
 
-def run(input_path, output_path, ledger_path, options, adapter=None, uid_namespace=None):
-    records = load_records(input_path, adapter, uid_namespace)
+def run(input_path, output_path, ledger_path, options, adapter=None, uid_namespace=None, retrieved_at=None):
+    records = load_records(input_path, adapter, uid_namespace, retrieved_at)
     ledger = Ledger.load(ledger_path)
     data, rep = build_with_report(records, options, ledger)  # validates; nothing is written before this succeeds
     atomic_write(output_path, data)  # the .ics first, then the ledger: a failed ledger save rebuilds identically
@@ -69,7 +80,7 @@ def _build(a):
         with open(a.config, encoding="utf-8") as f:
             cfg = json.load(f)
     options = BuildOptions.from_dict(cfg)
-    rep = run(a.input, a.output, a.ledger, options, a.adapter, a.uid_namespace)
+    rep = run(a.input, a.output, a.ledger, options, a.adapter, a.uid_namespace, a.retrieved_at)
     if options.uid_domain == "example.invalid":
         print("meeting_ics: warning: uid_domain is example.invalid; set uid_domain in --config to a domain you "
               "control before publishing", file=sys.stderr)
@@ -80,7 +91,7 @@ def _build(a):
 def _build_set(a):
     with open(a.config, encoding="utf-8") as f:
         options, names = feedset.load_set_config(json.load(f))
-    records = load_records(a.input, a.adapter, a.uid_namespace)
+    records = load_records(a.input, a.adapter, a.uid_namespace, a.retrieved_at)
     ledger = Ledger.load(a.ledger)
     fs = feedset.build_feedset(records, options, ledger, names)  # nothing is written before this succeeds
     feedset.write_feedset(fs, a.out, a.overwrite)
@@ -91,7 +102,7 @@ def _build_set(a):
 
 
 def _validate(a):
-    records = validate_records(load_records(a.input, a.adapter, a.uid_namespace))
+    records = validate_records(load_records(a.input, a.adapter, a.uid_namespace, a.retrieved_at))
     print("ok records=%d" % len(records))
 
 
@@ -124,6 +135,10 @@ def _template(a):
     return 0
 
 
+RETRIEVED_HELP = ("csv_template only: UTC fetch time YYYY-MM-DDTHH:MM:SSZ (or 'now') for rows whose retrieved_at "
+                  "is blank")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="meeting_ics")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -134,6 +149,7 @@ def main(argv=None):
     b.add_argument("--config")
     b.add_argument("--adapter")
     b.add_argument("--uid-namespace", help="required with --adapter; prefix of every UID")
+    b.add_argument("--retrieved-at", help=RETRIEVED_HELP)
     b.set_defaults(func=_build, tail="nothing written")
     s = sub.add_parser("build-set", help="build per-body feeds, a combined feed per jurisdiction and an index")
     s.add_argument("--input", required=True)
@@ -143,11 +159,13 @@ def main(argv=None):
     s.add_argument("--overwrite", action="store_true", help="replace a non-empty OUT/calendar")
     s.add_argument("--adapter")
     s.add_argument("--uid-namespace", help="required with --adapter; prefix of every UID")
+    s.add_argument("--retrieved-at", help=RETRIEVED_HELP)
     s.set_defaults(func=_build_set, tail="nothing written")
     v = sub.add_parser("validate", help="check an input file; prints 'ok records=N' or every problem")
     v.add_argument("--input", required=True)
     v.add_argument("--adapter")
     v.add_argument("--uid-namespace", help="required with --adapter; prefix of every UID")
+    v.add_argument("--retrieved-at", help=RETRIEVED_HELP)
     v.set_defaults(func=_validate, tail="input is invalid")
     c = sub.add_parser("check-feed", help="check a built .ics file; exit 1 if it has problems")
     c.add_argument("file")
