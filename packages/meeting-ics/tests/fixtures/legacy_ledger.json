@@ -1,0 +1,26 @@
+{
+ "t-1@example.org": {
+  "critical_hash": "f2835f8afb59ccb24f5b623169ecbeafca377349d3d79c87528f5cb4baf3c7aa",
+  "docs_hash": "2ab70c0f8bdf457698c2678b92754c32c1b94c879d485d2527e6500a0be662d1",
+  "last_modified": "2026-01-01T00:00:00Z",
+  "sequence": 0
+ },
+ "t-2@example.org": {
+  "critical_hash": "059ab9f7c4050e3947483ebdc675f059accd7e39a4dd868f5235e863c379e050",
+  "docs_hash": "e32c7341f50de5f873014b620dc5ac83c1a84cd7356c69c98b4c07c959ee9454",
+  "last_modified": "2026-01-01T00:00:00Z",
+  "sequence": 0
+ },
+ "t-3@example.org": {
+  "critical_hash": "593d2ef75097efcfb4bf42d80ce91762a4c5be652d4183d0ff3629987fd17b1f",
+  "docs_hash": "04d9daa5a5c6548306b154d0817ee42708b54d85a031a2e7650a88cb96a2dfa0",
+  "last_modified": "2026-01-01T00:00:00Z",
+  "sequence": 0
+ },
+ "t-4@example.org": {
+  "critical_hash": "fbd9f2ea771b5a4cefa82d40319bf7e5235f76e222e3ac2b3deb92d534a78812",
+  "docs_hash": "e9bcdabed0e04b9b9777cf670fa42ea604301a3b76bd3aeaf514a9f061840496",
+  "last_modified": "2026-01-01T00:00:00Z",
+  "sequence": 0
+ }
+}

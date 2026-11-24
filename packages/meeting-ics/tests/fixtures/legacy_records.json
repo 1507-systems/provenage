@@ -1,0 +1,19 @@
+{"records": [
+ {"uid_namespace": "t", "record_id": "1", "body": "City Council", "meeting_type": "City Council Regular Session",
+  "date": "2026-03-03", "start_time": "18:00", "timezone": "America/Denver", "status": "confirmed",
+  "retrieved_at": "2026-01-01T00:00:00Z", "location": "Council Chambers, 1 Example Way",
+  "links": {"portal": "https://example.org/meetings/1"}, "documents": []},
+ {"uid_namespace": "t", "record_id": "2", "body": "Planning Commission", "meeting_type": "Planning Commission Meeting",
+  "date": "2026-03-10", "start_time": "19:00", "timezone": "America/Denver", "status": "scheduled_not_cancelled",
+  "retrieved_at": "2026-01-01T00:00:00Z", "links": {}, "documents": []},
+ {"uid_namespace": "t", "record_id": "3", "body": "Library Board", "meeting_type": "Library Board Special Meeting",
+  "date": "2026-03-12", "start_time": "17:30", "end_time": "20:30", "timezone": "America/New_York",
+  "status": "cancelled", "retrieved_at": "2026-01-01T00:00:00Z", "location": "Library Annex",
+  "links": {"agenda": "https://example.org/meetings/3/agenda"},
+  "documents": [{"kind": "agenda", "url": "https://example.org/docs/3-agenda.pdf", "publish_date": "2026-03-05"},
+                {"kind": "packet", "url": "https://example.org/docs/3-packet.pdf", "publish_date": "2026-03-06"}]},
+ {"uid_namespace": "t", "record_id": "4", "body": "City Council", "meeting_type": "Board Study Session",
+  "date": "2026-03-17", "start_time": "16:00", "timezone": "America/Denver", "status": "confirmed",
+  "retrieved_at": "2026-01-01T00:00:00Z", "location": "Conference Room B",
+  "links": {"portal": "https://example.org/meetings/4"}, "documents": []}
+]}
