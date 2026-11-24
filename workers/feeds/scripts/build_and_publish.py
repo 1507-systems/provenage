@@ -196,6 +196,18 @@ def _fail(code, msg):
     return code
 
 
+def _open_nofollow(path, mode):
+    """Create or truncate a regular file for writing without following a symlink at the final component."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise ValueError("%s is not a regular file" % path)
+    except BaseException:
+        os.close(fd)
+        raise
+    return os.fdopen(fd, mode, encoding="utf-8") if "b" not in mode else os.fdopen(fd, mode)
+
+
 def prepare_work_dir(path):
     """Return (work_dir, made). With no path, a fresh private temporary directory. With a path, it must not exist, or
     be empty, or carry the marker file this script wrote; otherwise nothing in it is touched."""
@@ -203,15 +215,27 @@ def prepare_work_dir(path):
         return tempfile.mkdtemp(prefix="provenage-publish-"), True
     path = os.path.abspath(path)
     marker = os.path.join(path, WORK_MARKER)
-    if os.path.lexists(path):
-        if os.path.islink(path) or not os.path.isdir(path):
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        st = None
+    if st is not None:
+        if not stat.S_ISDIR(st.st_mode):  # lstat: a symlink is not a directory here
             raise ValueError("--work-dir %s exists and is not a plain directory" % path)
-        if os.listdir(path) and not os.path.isfile(marker):
+        if st.st_uid != os.getuid() or st.st_mode & 0o022:
+            raise ValueError("--work-dir %s is not owned by you or is group/other-writable; refusing to use it" % path)
+        try:
+            mst = os.lstat(marker)
+        except FileNotFoundError:
+            mst = None
+        if mst is not None and not stat.S_ISREG(mst.st_mode):
+            raise ValueError("--work-dir marker %s is not a regular file; refusing to use it" % marker)
+        if mst is None and os.listdir(path):
             raise ValueError("--work-dir %s is not empty and was not created by this script (no %s file); refusing "
                              "to use it. Pass a new or empty directory, or omit --work-dir" % (path, WORK_MARKER))
     else:
         os.makedirs(path, mode=0o700)
-    with open(marker, "w", encoding="utf-8") as f:
+    with _open_nofollow(marker, "w") as f:
         f.write("created by build_and_publish.py; only <this directory>/out and ledger.json are rewritten\n")
     return path, False
 
@@ -329,8 +353,16 @@ def _locked(args, store, work, say) -> int:
     # 4. build
     out_dir = os.path.join(work, "out")
     ledger_path = os.path.join(work, "ledger.json")
+    for planted in (out_dir, ledger_path):
+        if os.path.islink(planted):
+            return _fail(E_USAGE, "error: %s is a symlink in the work directory; refusing to write through it"
+                         % planted)
     shutil.rmtree(out_dir, ignore_errors=True)
-    with open(ledger_path, "wb") as f:
+    try:
+        ledger_f = _open_nofollow(ledger_path, "wb")
+    except (OSError, ValueError) as e:
+        return _fail(E_USAGE, "error: cannot write %s safely: %s" % (ledger_path, e))
+    with ledger_f as f:
         f.write(old_raw if old_raw is not None else b"{}\n")
     # -E ignores PYTHON* variables; cwd is the package directory (see run_builder); every path is absolute.
     cmd = [sys.executable, "-E", "-m", "meeting_ics", "build-set", "--input", os.path.abspath(args.input),

@@ -533,6 +533,49 @@ class Hardening(Base):
         os.symlink(empty, link)
         self.assertEqual(self.go(self.args(work_dir=link))[0], 2)
 
+    def _victim(self, name="victim.txt"):
+        v = os.path.join(self.tmp, name)
+        with open(v, "w") as f:
+            f.write("precious")
+        return v
+
+    def _assert_untouched(self, v):
+        with open(v) as f:
+            self.assertEqual(f.read(), "precious")
+        self.assertEqual(self.store.puts, [])
+
+    def test_symlinked_marker_is_refused_and_target_untouched(self):
+        v = self._victim()
+        wd = os.path.join(self.tmp, "wd-marker")
+        os.mkdir(wd, 0o700)
+        os.symlink(v, os.path.join(wd, bp.WORK_MARKER))
+        self.assertEqual(self.go(self.args(work_dir=wd))[0], 2)
+        self._assert_untouched(v)
+
+    def test_symlinked_ledger_or_out_in_marked_dir_is_refused(self):
+        for name in ("ledger.json", "out"):
+            v = self._victim("victim-" + name)
+            wd = os.path.join(self.tmp, "wd-" + name)
+            self.assertEqual(self.go(self.args(work_dir=wd))[0], 0)  # creates a marked dir
+            self.store.data.clear()
+            self.store.puts.clear()
+            target = os.path.join(wd, name)
+            if os.path.lexists(target):
+                shutil.rmtree(target) if os.path.isdir(target) and not os.path.islink(target) else os.unlink(target)
+            os.symlink(v, target)
+            self.assertEqual(self.go(self.args(work_dir=wd))[0], 2, name)
+            self._assert_untouched(v)
+            self.assertTrue(os.path.islink(target))
+
+    def test_group_or_other_writable_existing_dir_is_refused(self):
+        for mode in (0o770, 0o707):
+            wd = os.path.join(self.tmp, "open-%o" % mode)
+            os.mkdir(wd)
+            os.chmod(wd, mode)
+            code, _, err = self.go(self.args(work_dir=wd))
+            self.assertEqual(code, 2)
+            self.assertFalse(os.path.exists(os.path.join(wd, bp.WORK_MARKER)))
+
     def test_default_work_dir_is_a_fresh_private_dir_removed_afterwards(self):
         seen = {}
         real = bp.run_builder
