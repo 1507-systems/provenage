@@ -29,6 +29,11 @@ const env: Env = {
     'calendar/longmont-co/city-council.ics': ICS,
     'calendar/longmont-co/city-council.json': '{"title":"City Council"}',
     'calendar/index.json': '{"feeds":[]}',
+    'calendar/demo-town/all.ics': ICS,
+    // Private publisher state. It must never be reachable through the Worker (V1).
+    'state/ledger.json': '{"secret":"ledger"}',
+    'state/ledger.prev.json': '{"secret":"ledger"}',
+    'calendar/ledger.json': '{"secret":"ledger"}',
   }),
 };
 const call = (path: string, init?: RequestInit) =>
@@ -90,5 +95,23 @@ describe('feed worker', () => {
   it('rejects other methods', async () => {
     const r = await call('/calendar/longmont-co/city-council.ics', { method: 'POST' });
     expect(r.status).toBe(405);
+  });
+
+  it('V1: never serves the publisher state/ prefix', async () => {
+    for (const p of ['/state/ledger.json', '/state/ledger.prev.json', '/calendar/ledger.json', '/ledger.json']) {
+      for (const method of ['GET', 'HEAD']) {
+        const r = await call(p, { method });
+        expect(r.status, `${method} ${p}`).toBe(404);
+        expect(r.headers.get('Content-Type')).toContain('application/json');
+        expect(await r.text()).not.toContain('secret');
+      }
+    }
+  });
+
+  it('V2: serves the combined feed all.ics as text/calendar', async () => {
+    const r = await call('/calendar/demo-town/all.ics');
+    expect(r.status).toBe(200);
+    expect(r.headers.get('Content-Type')).toBe('text/calendar; charset=utf-8');
+    expect(await r.text()).toBe(ICS);
   });
 });

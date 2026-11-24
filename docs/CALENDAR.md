@@ -53,7 +53,9 @@ text in both, so subscribe to one or the other, not both.
   counted once; `totals.feeds` counts every feed.
 - `generated_at` is the latest `retrieved_at` among the records, never the wall clock.
 - The file is `json.dumps(sort_keys=True, indent=1, ensure_ascii=False)` plus a newline, in UTF-8.
-- The SEQUENCE ledger is not part of this tree and is never served.
+- The SEQUENCE ledger is not part of this tree and is never served. It lives at `state/ledger.json` in the same
+  bucket, with a one-version backup at `state/ledger.prev.json`; the Worker has no route for `state/`. Publishing is
+  described in `workers/feeds/README.md`.
 
 ## Subscription vs import
 
