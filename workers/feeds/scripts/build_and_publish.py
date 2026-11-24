@@ -14,7 +14,7 @@ This script reads no credentials and never prints the environment. wrangler inhe
 shell provides (for --target remote). --target local uses wrangler's local R2 simulator and needs none.
 
 Exit codes: 0 ok (including "no changes"), 1 build failed, 2 usage or config error, 3 lock held,
-4 shrink guard refused, 5 ledger integrity refused, 6 storage error.
+4 shrink guard refused, 5 ledger integrity refused, 6 storage or file-system error, 7 unexpected internal error.
 """
 import argparse
 import fcntl
@@ -23,9 +23,11 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 from typing import List, Optional
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -47,10 +49,17 @@ CT_LEDGER = "application/json"
 FEED_KEY_RE = re.compile(r"^calendar/[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*\.ics$")
 BUCKET_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 ANSI_RE = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]")
-NOT_FOUND_MSG = b"The specified key does not exist"
+# A get is "not found" only when the output positively names a missing KEY (R2 NoSuchKey, API code 10007).
+# Anything else, including a missing bucket (10006) or an auth failure, is a storage error: fail safe.
+NOT_FOUND_MARKERS = (b"The specified key does not exist", b"NoSuchKey", b"[code: 10007]")
+NOT_KEY_MARKERS = (b"[code: 10006]", b"NoSuchBucket", b"Authentication", b"Unauthorized", b"[code: 10000]")
+WORK_MARKER = ".provenage-publish-workdir"
+# The builder is offline and needs almost nothing from the environment. An allowlist keeps CLOUDFLARE_* and any other
+# token-like variable out of it.
+BUILDER_ENV_KEEP = ("PATH", "HOME", "TMPDIR", "TZ", "TZDIR", "LANG", "LANGUAGE", "SYSTEMROOT", "VIRTUAL_ENV")
 INVALID = object()  # the previous index exists but cannot be compared
 
-OK, E_BUILD, E_USAGE, E_LOCK, E_SHRINK, E_LEDGER, E_STORAGE = range(7)
+OK, E_BUILD, E_USAGE, E_LOCK, E_SHRINK, E_LEDGER, E_STORAGE, E_INTERNAL = range(8)
 
 
 class NotFound(Exception):
@@ -65,10 +74,9 @@ class WranglerStore:
     """R2 access through the wrangler CLI. Never uses `get --file`: a missing key leaves a 0-byte file behind and
     exits non-zero, which a careless reader would take for an empty object. `--pipe` returns bytes on stdout."""
 
-    def __init__(self, bucket, target, persist_to=None, wrangler=WRANGLER, work_dir=None):
+    def __init__(self, bucket, target, persist_to=None, wrangler=WRANGLER):
         self.bucket, self.target, self.persist_to = bucket, target, persist_to
         self.wrangler = wrangler
-        self.work_dir = work_dir or tempfile.gettempdir()
 
     def _flags(self):
         flags = ["--" + self.target]
@@ -94,20 +102,44 @@ class WranglerStore:
         p = self._run(["r2", "object", "get", "%s/%s" % (self.bucket, key), "--pipe"] + self._flags())
         if p.returncode == 0:
             return p.stdout
-        if NOT_FOUND_MSG in ANSI_RE.sub(b"", p.stdout + p.stderr):
+        if is_not_found(p.stdout + p.stderr):
             raise NotFound(key)
         raise StorageError("wrangler get %s failed (exit %d): %s" % (key, p.returncode, self._tail(p)))
 
     def put(self, key, data, content_type):
-        d = os.path.join(self.work_dir, "put")
-        os.makedirs(d, exist_ok=True)
-        path = os.path.join(d, hashlib.sha256(data).hexdigest())
-        with open(path, "wb") as f:
-            f.write(data)
-        p = self._run(["r2", "object", "put", "%s/%s" % (self.bucket, key), "--file", path,
-                       "--content-type", content_type] + self._flags())
+        try:
+            fd, path = tempfile.mkstemp(prefix="provenage-put-")  # private (0600) temporary file, removed below
+        except OSError as e:
+            raise StorageError("cannot create a temporary file for %s: %s" % (key, e)) from None
+        try:
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+            p = self._run(["r2", "object", "put", "%s/%s" % (self.bucket, key), "--file", path,
+                           "--content-type", content_type] + self._flags())
+        except OSError as e:
+            raise StorageError("wrangler put %s failed: %s" % (key, e)) from None
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
         if p.returncode != 0:
             raise StorageError("wrangler put %s failed (exit %d): %s" % (key, p.returncode, self._tail(p)))
+
+
+def is_not_found(output):
+    """True only when wrangler's output positively names a missing key. Unknown output is never "not found"."""
+    text = ANSI_RE.sub(b"", output)
+    if any(m in text for m in NOT_KEY_MARKERS) or b"bucket does not exist" in text.lower():
+        return False
+    return any(m in text for m in NOT_FOUND_MARKERS)
+
+
+def builder_env():
+    """The environment for the builder subprocess: an allowlist, so no CLOUDFLARE_* or other credential-like
+    variable reaches it. PYTHON* variables are dropped too (the builder also runs with -E)."""
+    keep = {k: v for k, v in os.environ.items() if k in BUILDER_ENV_KEEP or k.startswith("LC_")}
+    return keep
 
 
 def sha(data):
@@ -115,8 +147,9 @@ def sha(data):
 
 
 def run_builder(argv, env):
-    """Run the builder subprocess. A function so tests can wrap it."""
-    return subprocess.run(argv, env=env, stdin=subprocess.DEVNULL, capture_output=True, check=False)
+    """Run the builder subprocess with cwd set to the package directory, so `-m meeting_ics` resolves there and a
+    stray meeting_ics/ in the operator's current directory cannot shadow it. A function so tests can wrap it."""
+    return subprocess.run(argv, env=env, cwd=PKG, stdin=subprocess.DEVNULL, capture_output=True, check=False)
 
 
 def _prev_ok(prev):
@@ -163,30 +196,88 @@ def _fail(code, msg):
     return code
 
 
+def prepare_work_dir(path):
+    """Return (work_dir, made). With no path, a fresh private temporary directory. With a path, it must not exist, or
+    be empty, or carry the marker file this script wrote; otherwise nothing in it is touched."""
+    if path is None:
+        return tempfile.mkdtemp(prefix="provenage-publish-"), True
+    path = os.path.abspath(path)
+    marker = os.path.join(path, WORK_MARKER)
+    if os.path.lexists(path):
+        if os.path.islink(path) or not os.path.isdir(path):
+            raise ValueError("--work-dir %s exists and is not a plain directory" % path)
+        if os.listdir(path) and not os.path.isfile(marker):
+            raise ValueError("--work-dir %s is not empty and was not created by this script (no %s file); refusing "
+                             "to use it. Pass a new or empty directory, or omit --work-dir" % (path, WORK_MARKER))
+    else:
+        os.makedirs(path, mode=0o700)
+    with open(marker, "w", encoding="utf-8") as f:
+        f.write("created by build_and_publish.py; only <this directory>/out and ledger.json are rewritten\n")
+    return path, False
+
+
+def lock_path_for(args):
+    """The lock file path. The default lives in a private per-user directory, not directly in the shared temp dir."""
+    if args.lock_file:
+        return os.path.abspath(args.lock_file)
+    d = os.path.join(tempfile.gettempdir(), "provenage-publish-%d" % os.getuid())
+    try:
+        os.mkdir(d, 0o700)
+    except FileExistsError:
+        pass
+    st = os.lstat(d)
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or st.st_mode & 0o077:
+        raise ValueError("lock directory %s is not a private directory owned by you; remove it or pass --lock-file"
+                         % d)
+    return os.path.join(d, "%s-%s.lock" % (args.bucket, args.target))
+
+
+def open_lock(path):
+    """Open the lock file without following a symlink (O_NOFOLLOW) and check it is a regular file we own."""
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid():
+            raise ValueError("lock file %s is not a regular file owned by you" % path)
+    except BaseException:
+        os.close(fd)
+        raise
+    return os.fdopen(fd, "r+")
+
+
 def run(args, store, out=None) -> int:
-    """The whole publish. `store` has get(key) and put(key, data, content_type). Returns the exit code."""
+    """The whole publish. `store` has get(key) and put(key, data, content_type). Returns the exit code.
+    Nothing escapes as a Python traceback with exit 1: setup problems are 2, storage and file-system problems 6,
+    anything unexpected 7."""
     out = out or sys.stdout
 
     def say(s):
         print(s, file=out)
 
-    work = args.work_dir
-    made_work = work is None
-    if made_work:
-        work = tempfile.mkdtemp(prefix="provenage-publish-")
-    os.makedirs(work, exist_ok=True)
-    lock_path = args.lock_file or os.path.join(
-        tempfile.gettempdir(), "provenage-publish-%s-%s.lock" % (args.bucket, args.target))
-    lock = open(lock_path, "a")
+    work, made_work, lock = None, False, None
     try:
+        try:
+            work, made_work = prepare_work_dir(args.work_dir)
+            lock_path = lock_path_for(args)
+            lock = open_lock(lock_path)
+        except (OSError, ValueError) as e:
+            return _fail(E_USAGE, "error: cannot set up the work directory or lock file: %s" % e)
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             return _fail(E_LOCK, "another publish is running (lock %s)" % lock_path)
         return _locked(args, store, work, say)
+    except (OSError, StorageError, NotFound) as e:
+        return _fail(E_STORAGE, "storage or file-system error: %s" % e)
+    except Exception as e:  # noqa: BLE001 - last resort: a documented code and a clear message, never exit 1
+        return _fail(E_INTERNAL, "internal error (%s: %s). This is a bug in build_and_publish.py or unexpected "
+                     "builder output, not a build failure. The bucket may be partly updated; rerun with --dry-run "
+                     "to see what is left"
+                     % (type(e).__name__, e))
     finally:
-        lock.close()
-        if made_work:
+        if lock is not None:
+            lock.close()
+        if made_work and work:
             shutil.rmtree(work, ignore_errors=True)
 
 
@@ -215,6 +306,10 @@ def _locked(args, store, work, say) -> int:
     except StorageError as e:
         return _fail(E_STORAGE, "storage error: %s" % e)
     if old_raw is None:
+        if args.target == "remote" and not args.init_ledger:
+            return _fail(E_LEDGER, "state/ledger.json was not found in the remote bucket. The first remote publish "
+                         "needs --init-ledger (it starts SEQUENCE at 0), and so does a bucket whose ledger went "
+                         "missing; check the bucket name first")
         if prev_raw is not None and not args.init_ledger:
             return _fail(E_LEDGER, "state/ledger.json is missing but calendar/index.json exists; refusing to "
                          "restart SEQUENCE from 0 (pass --init-ledger only if you accept that subscribers may "
@@ -237,17 +332,16 @@ def _locked(args, store, work, say) -> int:
     shutil.rmtree(out_dir, ignore_errors=True)
     with open(ledger_path, "wb") as f:
         f.write(old_raw if old_raw is not None else b"{}\n")
-    cmd = [sys.executable, "-m", "meeting_ics", "build-set", "--input", args.input, "--config", args.config,
-           "--ledger", ledger_path, "--out", out_dir]
+    # -E ignores PYTHON* variables; cwd is the package directory (see run_builder); every path is absolute.
+    cmd = [sys.executable, "-E", "-m", "meeting_ics", "build-set", "--input", os.path.abspath(args.input),
+           "--config", os.path.abspath(args.config), "--ledger", ledger_path, "--out", out_dir]
     if args.adapter:
         cmd += ["--adapter", args.adapter]
     if args.uid_namespace:
         cmd += ["--uid-namespace", args.uid_namespace]
     if args.retrieved_at:
         cmd += ["--retrieved-at", args.retrieved_at]
-    env = dict(os.environ)
-    env["PYTHONPATH"] = PKG + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
-    p = run_builder(cmd, env)
+    p = run_builder(cmd, builder_env())
     if p.stderr:
         sys.stderr.write(p.stderr.decode("utf-8", "replace"))
     if p.returncode != 0:
@@ -260,6 +354,13 @@ def _locked(args, store, work, say) -> int:
         with open(os.path.join(out_dir, INDEX_KEY), "rb") as f:
             index_bytes = f.read()
         index = json.loads(index_bytes.decode("utf-8"))
+        ev = index["totals"]["events"]
+        if isinstance(ev, bool) or not isinstance(ev, int):
+            raise ValueError("built index totals.events is not an integer")
+        for ent in index["feeds"]:
+            if ent["kind"] == "combined" and not (isinstance(ent["jurisdiction"], str)
+                                                  and isinstance(ent["events"], int)):
+                raise ValueError("built index has a malformed combined feed entry")
         with open(ledger_path, "rb") as f:
             new_ledger_bytes = f.read()
         new = Ledger.loads(new_ledger_bytes)
@@ -375,8 +476,10 @@ def parse_args(argv):
     ap.add_argument("--force", action="store_true", help="publish despite a shrink-guard refusal")
     ap.add_argument("--init-ledger", action="store_true",
                     help="start an empty ledger although calendar/index.json exists (resets SEQUENCE)")
-    ap.add_argument("--work-dir", help="scratch directory (default: a temporary directory removed afterwards)")
-    ap.add_argument("--lock-file", help="lock file path (default: in the temp directory, per bucket and target)")
+    ap.add_argument("--work-dir", help="scratch directory: must be new or empty, or carry the marker file this "
+                    "script wrote (default: a fresh private temporary directory, removed afterwards)")
+    ap.add_argument("--lock-file", help="lock file path (default: a private per-user directory under the temp "
+                    "directory, per bucket and target)")
     ap.add_argument("--public-base", help="print Public URL: <base>/<key> for every feed after success")
     ap.add_argument("--adapter", help="passed to build-set")
     ap.add_argument("--uid-namespace", help="passed to build-set")
@@ -400,8 +503,25 @@ def check_args(a) -> Optional[str]:
         return "--config is not readable JSON: %s" % e
     if a.public_base:
         a.public_base = a.public_base.rstrip("/")
-        if not re.match(r"^https://[^\s/?#]+(/[^\s?#]*)?$", a.public_base):
-            return "--public-base must be an https URL without query or fragment"
+        err = check_public_base(a.public_base)
+        if err:
+            return err
+    a.input, a.config = os.path.abspath(a.input), os.path.abspath(a.config)
+    return None
+
+
+def check_public_base(url) -> Optional[str]:
+    msg = "--public-base must be an https URL with a host name, no user name or password, query or fragment"
+    if any(c.isspace() or ord(c) < 32 or ord(c) == 127 or c == "\\" for c in url):
+        return msg
+    try:
+        u = urllib.parse.urlsplit(url)
+        host, _port = u.hostname, u.port
+    except ValueError:
+        return msg
+    if u.scheme != "https" or not host or u.username is not None or u.password is not None or "@" in u.netloc \
+            or u.query or u.fragment or "?" in url or "#" in url:
+        return msg
     return None
 
 
@@ -412,18 +532,8 @@ def main(argv=None) -> int:
         return _fail(E_USAGE, "error: " + err)
     if not os.path.isfile(WRANGLER):
         return _fail(E_USAGE, "error: wrangler not found at %s; run `npm ci` in workers/feeds" % WRANGLER)
-    work = a.work_dir
-    if work is None:
-        work = a.work_dir = tempfile.mkdtemp(prefix="provenage-publish-")
-        made = True
-    else:
-        made = False
-    try:
-        store = WranglerStore(a.bucket, a.target, a.persist_to, work_dir=work)
-        return run(a, store)
-    finally:
-        if made:
-            shutil.rmtree(work, ignore_errors=True)
+    store = WranglerStore(a.bucket, a.target, a.persist_to)
+    return run(a, store)
 
 
 if __name__ == "__main__":

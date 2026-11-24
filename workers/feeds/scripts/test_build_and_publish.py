@@ -377,7 +377,7 @@ class LedgerIntegrity(Base):
         self.assertIn("publish incomplete: 1 of 3 feeds uploaded; calendar/index.json not updated; rerun to finish",
                       err)
         self.assertNotIn(INDEX, self.store.data)
-        self.assertIn(LEDGER, self.store.data)
+        self.assertEqual(self.store.data[LEDGER], clean.data[LEDGER])  # the stored ledger is already the new one
         self.store.fail_keys.clear()
         # A later rerun still sees "no index" so the ledger is treated as present and unchanged.
         code, _, _ = self.go()
@@ -496,6 +496,219 @@ class Exits(Base):
         self.assertEqual(cm.exception.code, 2)
 
 
+class Hardening(Base):
+    """Wave 2 review follow-ups for the publisher."""
+
+    def test_work_dir_with_foreign_files_is_refused_and_untouched(self):
+        wd = os.path.join(self.tmp, "precious")
+        os.makedirs(os.path.join(wd, "out"))
+        for rel in ("out/keep", "ledger.json", "notes.txt"):
+            with open(os.path.join(wd, rel), "w") as f:
+                f.write("mine")
+        code, _, err = self.go(self.args(work_dir=wd))
+        self.assertEqual(code, 2)
+        self.assertIn("refusing", err)
+        for rel in ("out/keep", "ledger.json", "notes.txt"):
+            with open(os.path.join(wd, rel)) as f:
+                self.assertEqual(f.read(), "mine")
+        self.assertEqual(self.store.puts, [])
+        # a lone out/ directory is foreign too
+        wd2 = os.path.join(self.tmp, "only-out")
+        os.makedirs(os.path.join(wd2, "out"))
+        self.assertEqual(self.go(self.args(work_dir=wd2))[0], 2)
+
+    def test_work_dir_empty_new_or_marked_is_used(self):
+        empty = os.path.join(self.tmp, "empty")
+        os.mkdir(empty)
+        for wd in (empty, os.path.join(self.tmp, "fresh")):
+            self.store.data.clear()
+            self.assertEqual(self.go(self.args(work_dir=wd))[0], 0)
+            self.assertTrue(os.path.isfile(os.path.join(wd, bp.WORK_MARKER)))
+        # marked: rerun reuses it; unrelated files beside out/ and ledger.json survive
+        with open(os.path.join(empty, "other.txt"), "w") as f:
+            f.write("x")
+        self.assertEqual(self.go(self.args(work_dir=empty))[0], 0)
+        self.assertTrue(os.path.isfile(os.path.join(empty, "other.txt")))
+        link = os.path.join(self.tmp, "link")
+        os.symlink(empty, link)
+        self.assertEqual(self.go(self.args(work_dir=link))[0], 2)
+
+    def test_default_work_dir_is_a_fresh_private_dir_removed_afterwards(self):
+        seen = {}
+        real = bp.run_builder
+
+        def spy(cmd, env):
+            out = cmd[cmd.index("--out") + 1]
+            seen["work"] = os.path.dirname(out)
+            seen["mode"] = os.stat(seen["work"]).st_mode & 0o777
+            return real(cmd, env)
+
+        with mock.patch.object(bp, "run_builder", spy):
+            self.assertEqual(self.go(self.args(work_dir=None))[0], 0)
+        self.assertEqual(seen["mode"], 0o700)
+        self.assertFalse(os.path.exists(seen["work"]))
+
+    def test_builder_cannot_be_shadowed_from_the_current_directory(self):
+        evil = os.path.join(self.tmp, "cwd")
+        os.makedirs(os.path.join(evil, "meeting_ics"))
+        with open(os.path.join(evil, "meeting_ics", "__init__.py"), "w") as f:
+            f.write("raise SystemExit(99)\n")
+        a = self.args()
+        a.input, a.config = os.path.relpath(a.input, evil), os.path.relpath(a.config, evil)  # relative on purpose
+        old = os.getcwd()
+        os.chdir(evil)
+        try:
+            with mock.patch.dict(os.environ, {"PYTHONPATH": evil}):
+                code, out, err = self.go(a)
+        finally:
+            os.chdir(old)
+        self.assertEqual(code, 0, err)
+        self.assertIn(INDEX, self.store.data)
+
+    def test_builder_command_uses_absolute_paths_and_package_cwd(self):
+        calls = []
+        real_run = bp.subprocess.run
+
+        def spy(*a, **kw):
+            calls.append((a, kw))
+            return real_run(*a, **kw)
+
+        with mock.patch.object(bp.subprocess, "run", spy):
+            self.assertEqual(self.go()[0], 0)
+        (argv,), kw = calls[0]
+        self.assertEqual(kw["cwd"], bp.PKG)
+        self.assertIn("-E", argv)
+        for flag in ("--input", "--config", "--ledger", "--out"):
+            self.assertTrue(os.path.isabs(argv[argv.index(flag) + 1]), flag)
+
+    def test_builder_env_has_no_credentials_but_storage_keeps_them(self):
+        secret = {"CLOUDFLARE_API_TOKEN": "t1", "CLOUDFLARE_ACCOUNT_ID": "a1", "MY_SERVICE_TOKEN": "t2",
+                  "AWS_SECRET_ACCESS_KEY": "t3", "GITHUB_TOKEN": "t4", "PYTHONPATH": "/elsewhere", "PATH": "/usr/bin"}
+        seen = {}
+        real = bp.run_builder
+
+        def spy(cmd, env):
+            seen["env"] = dict(env)
+            return real(cmd, env)
+
+        with mock.patch.dict(os.environ, secret):
+            with mock.patch.object(bp, "run_builder", spy):
+                self.assertEqual(self.go()[0], 0)
+            for k in secret:
+                if k != "PATH":
+                    self.assertNotIn(k, seen["env"], k)
+            self.assertIn("PATH", seen["env"])
+            st = bp.WranglerStore("b", "remote", wrangler="/bin/true")
+            with mock.patch.object(bp.subprocess, "run") as run:
+                st._run(["whoami"])
+            self.assertEqual(run.call_args[1]["env"]["CLOUDFLARE_API_TOKEN"], "t1")
+
+    def test_exit_codes_for_unexpected_failures(self):
+        class Boom(MemoryStore):
+            def put(self, key, data, ct):
+                raise OSError("disk full")
+
+        code, _, err = self.go(store=Boom())
+        self.assertEqual(code, 6)
+        self.assertIn("disk full", err)
+
+        class Odd(MemoryStore):
+            def get(self, key):
+                raise RuntimeError("surprise")
+
+        code, _, err = self.go(store=Odd())
+        self.assertEqual(code, 7)
+        self.assertIn("internal error (RuntimeError: surprise)", err)
+        self.assertNotIn("Traceback", err)
+
+    def test_builder_index_without_totals_is_a_build_failure_not_a_crash(self):
+        real = bp.run_builder
+
+        def strip(cmd, env):
+            p = real(cmd, env)
+            path = os.path.join(cmd[cmd.index("--out") + 1], INDEX)
+            with open(path, "rb") as f:
+                idx = json.load(f)
+            del idx["totals"]
+            with open(path, "w") as f:
+                json.dump(idx, f)
+            return p
+
+        with mock.patch.object(bp, "run_builder", strip):
+            code, _, err = self.go()
+        self.assertEqual(code, 1)
+        self.assertIn("cannot read the build output", err)
+
+    def test_lock_setup_problems_exit_2(self):
+        code, _, err = self.go(self.args(lock_file=os.path.join(self.tmp, "no-such-dir", "lock")))
+        self.assertEqual(code, 2)
+        self.assertIn("cannot set up", err)
+        target = os.path.join(self.tmp, "target")
+        open(target, "w").close()
+        link = os.path.join(self.tmp, "lock-link")
+        os.symlink(target, link)
+        code, _, err = self.go(self.args(lock_file=link))
+        self.assertEqual(code, 2)
+        self.assertEqual(self.store.puts, [])
+
+    def test_default_lock_is_in_a_private_per_user_directory(self):
+        with mock.patch.object(bp.tempfile, "gettempdir", return_value=self.tmp):
+            a = self.args(lock_file=None)
+            self.assertEqual(self.go(a)[0], 0)
+            d = os.path.join(self.tmp, "provenage-publish-%d" % os.getuid())
+            self.assertEqual(os.stat(d).st_mode & 0o777, 0o700)
+            self.assertEqual(os.listdir(d), ["test-bucket-local.lock"])
+            self.assertEqual(os.stat(os.path.join(d, "test-bucket-local.lock")).st_mode & 0o777, 0o600)
+            os.chmod(d, 0o777)  # someone loosened it: refuse
+            code, _, err = self.go(a)
+            self.assertEqual(code, 2)
+            self.assertIn("not a private directory", err)
+            os.chmod(d, 0o700)
+            shutil.rmtree(d)
+            elsewhere = os.path.join(self.tmp, "elsewhere")
+            os.mkdir(elsewhere)
+            os.symlink(elsewhere, d)  # a planted symlink is refused
+            self.assertEqual(self.go(a)[0], 2)
+            self.assertEqual(os.listdir(elsewhere), [])
+
+    def test_not_found_detection_is_positive_only(self):
+        yes = [b"The specified key does not exist.", b"\x1b[31mNoSuchKey\x1b[0m", b"error [code: 10007]"]
+        no = [b"", b"boom", b"The specified bucket does not exist. [code: 10006]",
+              b"Authentication error [code: 10000] The specified key does not exist", b"fetch failed",
+              b"The specified object could not be found"]
+        for text in yes:
+            self.assertTrue(bp.is_not_found(text), text)
+        for text in no:
+            self.assertFalse(bp.is_not_found(text), text)
+
+    def test_unrecognised_failure_on_remote_is_storage_error_not_a_fresh_start(self):
+        st = bp.WranglerStore("b", "remote", wrangler="/bin/true")
+        odd = mock.Mock(returncode=1, stdout=b"", stderr=b"some new wording about a missing thing")
+        with mock.patch.object(st, "_run", return_value=odd):
+            with self.assertRaises(bp.StorageError):
+                st.get("calendar/index.json")
+
+    def test_first_remote_publish_needs_init_ledger(self):
+        code, _, err = self.go(self.args(target="remote"))
+        self.assertEqual(code, 5)
+        self.assertIn("--init-ledger", err)
+        self.assertEqual(self.store.puts, [])
+        code, out, _ = self.go(self.args(target="remote", init_ledger=True))
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING: initializing an empty ledger", out)
+
+    def test_public_base_validation(self):
+        ok = ["https://api.example.org", "https://api.example.org/provenage", "https://api.example.org:8443/p"]
+        bad = ["http://x.example", "https://", "https:///path", "https://user@host.example/p",
+               "https://user:pw@host.example", "https://host.example/p?x=1", "https://host.example/#f",
+               "https://host.example/a b", "https://host.example\x00/", "https://host.example\\evil",
+               "https://host.example:99999/", "ftp://host.example", "//host.example", "https://@host.example"]
+        for u in ok:
+            self.assertIsNone(bp.check_public_base(u), u)
+        for u in bad:
+            self.assertIn("--public-base", bp.check_public_base(u) or "", u)
+
+
 class Units(unittest.TestCase):
     def test_wrangler_store_get_maps_not_found_and_errors(self):
         st = bp.WranglerStore("b", "local", wrangler="/bin/true")
@@ -520,7 +733,7 @@ class Units(unittest.TestCase):
     def test_no_credentials_referenced(self):
         src = open(bp.__file__, encoding="utf-8").read()
         code = src.split('"""', 2)[2]  # everything after the module docstring
-        for word in ("API_TOKEN", "wicket", "keychain", "Authorization"):
+        for word in ("API_TOKEN", "CLOUDFLARE_API", "Authorization", "Bearer"):
             self.assertNotIn(word, code)
 
 
@@ -532,7 +745,7 @@ class WranglerLocal(Base):
     def setUp(self):
         super().setUp()
         self.persist = os.path.join(self.tmp, "r2-state")
-        self.ws = bp.WranglerStore("provenage-test", "local", self.persist, work_dir=self.tmp)
+        self.ws = bp.WranglerStore("provenage-test", "local", self.persist)
 
     def test_w1_missing_key_is_not_found(self):
         with self.assertRaises(bp.NotFound):

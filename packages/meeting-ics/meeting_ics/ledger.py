@@ -20,6 +20,12 @@ def sha(obj):
                           .encode("utf-8")).hexdigest()
 
 
+def _current_umask():
+    mask = os.umask(0)
+    os.umask(mask)
+    return mask
+
+
 def atomic_write(path, data):
     """Write bytes to a new, uniquely named temporary file in the same directory (created exclusively, so a
     pre-existing file or symlink is never followed), fsync, then os.replace onto path, so a reader never sees a
@@ -33,7 +39,7 @@ def atomic_write(path, data):
             f.write(data)
             f.flush()
             os.fsync(f.fileno())
-        os.chmod(tmp, 0o644)
+        os.chmod(tmp, 0o666 & ~_current_umask())  # honour the caller's umask (mkstemp creates 0600)
         os.replace(tmp, path)
     except BaseException:
         try:
