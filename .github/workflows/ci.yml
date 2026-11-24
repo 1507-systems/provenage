@@ -37,11 +37,12 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Lint (before test)
-        run: ruff check packages/
+        run: ruff check packages/ workers/feeds/scripts/
 
       - name: Test (Python)
         # Zero collected tests exits 5 and fails this step. Keep it that way.
-        run: pytest packages/meeting-ics
+        # workers/feeds/scripts holds the publisher tests; they use an in-memory store and make no network calls.
+        run: pytest packages/meeting-ics workers/feeds/scripts
 
       - name: Audit (Python)
         run: pip-audit -r requirements-dev.txt
@@ -63,6 +64,13 @@ jobs:
       - name: Test (Worker)
         working-directory: workers/feeds
         run: npm test
+
+      - name: Test (publisher against wrangler's local R2 simulator)
+        # --local only: no account, no token, no network. State goes to a temporary directory.
+        env:
+          PROVENAGE_WRANGLER_LOCAL: '1'
+          WRANGLER_SEND_METRICS: 'false'
+        run: python -m pytest workers/feeds/scripts -q -k WranglerLocal
 
       - name: Build check (Worker, no side effects)
         working-directory: workers/feeds
