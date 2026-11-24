@@ -13,6 +13,7 @@ import unittest
 from meeting_ics import BuildOptions, Ledger, RecordError, build_feedset, cli
 from meeting_ics.check import parse_ics
 from meeting_ics.feedset import encode_index, load_set_config, write_feedset
+from meeting_ics.validate import SLUG_RE, validate_records
 
 OPTS = BuildOptions(uid_domain="example.org")
 NAMES = {"demo-town": "Demo Town"}
@@ -286,10 +287,16 @@ class SlugVersusWorker(unittest.TestCase):
         self.assertIsNotNone(m, "SEGMENT literal not found in index.ts")
         seg = re.compile("^" + m.group(1) + "$")
         for s in ("a", "demo-town", "city-council", "a1-b2-c3", "x" * 64):
-            self.assertTrue(re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", s))
+            self.assertTrue(re.fullmatch(SLUG_RE, s))
             self.assertTrue(seg.match(s), s)
+            self.assertLessEqual(len(s), 64)
         for s in (".", "..", "a.b", "a_b", "-a", "a-", "a--b", "A"):
-            self.assertFalse(re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", s), s)
+            self.assertFalse(re.fullmatch(SLUG_RE, s), s)
+        too_long = "x" * 65
+        recs = fixture()
+        recs[0]["body_slug"] = too_long
+        with self.assertRaises(RecordError):
+            validate_records(recs)
 
 
 class WriteSet(unittest.TestCase):
