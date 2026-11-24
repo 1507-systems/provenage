@@ -17,6 +17,10 @@
 - SEQUENCE is bumped on a calendar-critical change or a change to the document set
   (see the ledger below).
 - Each feed carries a VTIMEZONE for its jurisdiction.
+- Each feed declares `METHOD:PUBLISH` and a refresh hint (`REFRESH-INTERVAL;VALUE=DURATION:PT1H` plus
+  `X-PUBLISHED-TTL:PT1H`). Apple honours the first, Outlook the second, Google neither. They are not hashed.
+- Every built feed can be checked with `meeting_ics check-feed FILE` (strict RFC 5545 structure, TEXT escapes,
+  no ATTENDEE, ORGANIZER or RSVP).
 - Combined feeds keep body identity in the title prefix: the builder prefixes the
   meeting type with the body name unless it already starts with it, for example
   `City Council Regular Session`.

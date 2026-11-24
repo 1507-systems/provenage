@@ -17,7 +17,29 @@
 - Statuses `scheduled`, `rescheduled`, `postponed`, `completed` and the alias `canceled`. Rescheduled, completed
   and postponed emit `<x_prefix>-LIFECYCLE`; postponed is `STATUS:TENTATIVE` with a `Postponed: ` SUMMARY prefix.
 
+- Client-compatibility options: `method` (default `PUBLISH`), `refresh_interval` (default `PT1H`, written as
+  `REFRESH-INTERVAL;VALUE=DURATION` and `X-PUBLISHED-TTL`), and `calendar_description` (`X-WR-CALDESC`).
+  `BuildOptions.validate()` checks every option, including end-rule basis labels, before a build.
+- `meeting_ics/check.py` (`parse_ics`, `unescape_text`, `validate`) and `meeting_ics check-feed FILE
+  [--expect-events N]`, a strict stdlib validator for built feeds (exit 0, 1 or 2).
+- `meeting_ics template [--output PATH]` and the packaged CSV header `adapters/csv_template.csv`. The CSV adapter
+  itself is not part of this change.
+- Ledger: `Ledger.loads`, `Ledger.dumps`, `monotonic_problems`, atomic `save`, and `ValueError`
+  (`malformed ledger: ...`) for any ledger that is not well formed.
+- `build` warns on stderr when `uid_domain` is the placeholder `example.invalid`.
+- Test-only dependency `icalendar` (pinned in `requirements-dev.txt`) for an independent round-trip test.
+
 ### Changed
+
+- Header order is now `METHOD`, `X-WR-CALNAME`, `X-WR-CALDESC`, `X-WR-TIMEZONE`, `REFRESH-INTERVAL`,
+  `X-PUBLISHED-TTL`, then the VTIMEZONEs. Feeds gain `METHOD:PUBLISH`, `REFRESH-INTERVAL` and `X-PUBLISHED-TTL`
+  (all PT1H) once; none is hashed, so SEQUENCE does not change. Set `method` and `refresh_interval` to null to keep
+  the 0.1.x bytes.
+- `BuildOptions.from_dict` raises `ValueError` (was `TypeError`) for an unknown key.
+- `esc` deletes control characters other than tab, and the end-basis line is escaped.
+- A ledger file that is empty, not JSON or malformed now raises instead of being silently replaced by an empty
+  ledger (which would have reset every SEQUENCE). A missing file is still a fresh ledger.
+- The `.ics` and ledger are written atomically (temporary file, then rename).
 
 - An unknown or null status is now an error (before, it built with an `unmapped-status` AMBIGUITY note).
 - An empty input is refused (before, it built an empty calendar).

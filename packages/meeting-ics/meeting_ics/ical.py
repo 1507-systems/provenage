@@ -1,13 +1,18 @@
 """iCalendar primitives: escape, fold, VTIMEZONE generation (rules R12, R13)."""
 import datetime
+import re
 
 BS = chr(92)
+# Control characters other than tab (U+0009) and LF (U+000A, which becomes the two characters \n first).
+_CONTROL = re.compile("[\x00-\x08\x0b-\x1f\x7f]")
 
 
 def esc(text):
-    """TEXT escaping: backslash, semicolon, comma, newline."""
-    return (text.replace("\\", "\\\\").replace(";", BS + ";").replace(",", "\\,")
-            .replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\\n"))
+    """TEXT escaping: backslash, semicolon, comma, newline. Control characters (other than tab) are deleted, so
+    no value can inject a content line."""
+    escaped = (text.replace("\\", "\\\\").replace(";", BS + ";").replace(",", "\\,")
+               .replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\\n"))
+    return _CONTROL.sub("", escaped)
 
 
 def fold(line):

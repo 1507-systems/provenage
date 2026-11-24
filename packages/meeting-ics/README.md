@@ -14,10 +14,12 @@ License: Apache-2.0 (see the repository root).
 - `model.py` MeetingRecord, the source-agnostic input record, and the status mapping
 - `validate.py` the input contract: the only record validator
 - `ical.py` escape, fold, VTIMEZONE generation
-- `ledger.py` SEQUENCE ledger
+- `ledger.py` SEQUENCE ledger: strict load, atomic save, `monotonic_problems`
+- `check.py` strict `.ics` parser and validator (`parse_ics`, `unescape_text`, `validate`), used by `check-feed`
 - `build.py` `build(records, options) -> bytes`
 - `cli.py` / `__main__.py` command line
 - `adapters/primegov_normalized.py` the only PrimeGov-aware code
+- `adapters/csv_template.csv` the CSV header row printed by `meeting_ics template`
 - `tests/` unittest suite
 
 ## Input schema
@@ -78,10 +80,26 @@ send `rescheduled`. SEQUENCE is driven only by the change hash, which includes t
 
 `prodid`; `uid_domain`; `default_duration` (JSON: `default_duration_hours` or `_minutes`); `end_rules`, a list of
 (meeting_type substring, case-insensitive) to a fixed local end `"HH:MM"` or `{duration_minutes|end_local, basis}`,
-first match wins; `x_prefix` (default `X-MEETING-ICS`; a host project may set its own, for example `X-EXAMPLE`); `calendar_name`; `detail`: `links` (implemented),
+first match wins; `x_prefix` (default `X-MEETING-ICS`; a host project may set its own, for example `X-EXAMPLE`); `calendar_name`; `calendar_description` (X-WR-CALDESC); `method` (`"PUBLISH"`, the default, or null to omit METHOD); `refresh_interval` (an RFC 5545 duration such as `PT1H`, the default, `P1D` or `PT30M`, or null to omit the refresh hints); `detail`: `links` (implemented),
 `topics` and `full` (stubs that raise NotImplementedError, pending a design decision).
+Options are validated before anything is built: a bad `uid_domain`, `x_prefix`, `prodid`, `method`,
+`refresh_interval` or end-rule `basis` (letters, digits, `. _ -`, max 64) is a `ValueError`, and `--config` rejects
+unknown keys so a misspelt or stray key fails instead of being ignored.
 End precedence: record `end_time`, then end rule, then default duration. The end basis is always declared in
 `<x_prefix>-DTEND-BASIS`.
+
+### Calendar header and client behaviour
+
+Header lines, in order: `BEGIN`, `VERSION`, `PRODID`, `CALSCALE`, `METHOD:PUBLISH` (if `method`), `X-WR-CALNAME`,
+`X-WR-CALDESC`, `X-WR-TIMEZONE` (only when the feed has a single zone), `REFRESH-INTERVAL;VALUE=DURATION:<d>` and
+`X-PUBLISHED-TTL:<d>` (if `refresh_interval`), then the VTIMEZONE blocks sorted by TZID. Times always carry a TZID
+with a VTIMEZONE, never UTC alone.
+
+Refresh hints are advisory: Apple Calendar honours `REFRESH-INTERVAL`, Outlook reads `X-PUBLISHED-TTL`, and Google
+Calendar ignores both and refreshes on its own schedule (often many hours). `METHOD:PUBLISH` is the correct value
+for a one-way public feed. None of these lines are hashed, so changing them never bumps SEQUENCE. Feeds built by
+0.1.x gain the three lines once; pass `method=None, refresh_interval=None` (`"method": null, "refresh_interval":
+null` in `--config`) to keep the old bytes.
 
 ## Rules (the contract; as implemented in `build.py`)
 
@@ -100,7 +118,7 @@ End precedence: record `end_time`, then end rule, then default duration. The end
     its basis) or the docs hash (links and sorted documents) changes, SEQUENCE increments and last_modified becomes
     this run's DTSTAMP. UIDs absent from input stay in the ledger.
 11. LAST-MODIFIED is the ledger last_modified.
-12. Fold at 75 octets without splitting UTF-8, CRLF line ends, TEXT escapes for backslash, semicolon, comma, newline.
+12. Fold at 75 octets without splitting UTF-8, CRLF line ends, TEXT escapes for backslash, semicolon, comma, newline. Control characters other than tab are deleted from every escaped value, and the end-basis label is escaped too, so no text can add a line to the feed.
 13. VTIMEZONE: built-in US-rule blocks (Denver, New_York, Chicago, Los_Angeles; Denver is exact), fixed zones
     (Phoenix, Honolulu, UTC), any other IANA zone derived from zoneinfo transitions for the years present. If
     zoneinfo or tz data is unavailable it raises RuntimeError.
@@ -114,6 +132,26 @@ or, once installed, `meeting-ics build ...`. `--adapter primegov_normalized --ui
 Check an input file without building: `python3 -m meeting_ics validate --input records.json` prints `ok records=N`
 (exit 0) or one `<path>: <message>` line per problem and a summary (exit 2). All errors, from any command, exit 2.
 
+Check a built feed: `python3 -m meeting_ics check-feed feed.ics [--expect-events N]` parses it strictly (CRLF,
+75-octet lines, UTF-8, balanced components), then checks VERSION/PRODID, VTIMEZONE and VEVENT structure, unique
+`local@domain` UIDs, UTC DTSTAMP and LAST-MODIFIED, local DTSTART/DTEND with a defined TZID, STATUS values, TEXT
+escapes, `REFRESH-INTERVAL` parameters, and that no ATTENDEE, ORGANIZER or RSVP appears. It prints `FAIL: ...` and
+`NOTE: ...` lines, then `<file>: events=N failures=M`, and exits 0 (clean), 1 (failures) or 2 (unreadable file).
+It does not evaluate time-zone offsets; the tests cross-check those with the `icalendar` library.
+
+`python3 -m meeting_ics template [--output PATH]` prints (or writes, refusing to overwrite) the header row of the
+CSV input template. The template file ships with the package; the CSV adapter that reads it is a later addition.
+
+`build` writes the `.ics` and then the ledger, each atomically (a `.tmp` file, then rename), and prints a warning
+to stderr when `uid_domain` is still the placeholder `example.invalid`; UIDs are permanent once published.
+
+### SEQUENCE ledger
+
+A ledger that is not valid (bad JSON, an empty file, a wrong top level, a malformed entry) is a `ValueError`
+beginning `malformed ledger:`, never a fresh ledger, because starting over would reset every SEQUENCE. Only a
+missing file starts fresh. `Ledger.loads(bytes)`, `.dumps()`, `.save(path)` (atomic) and
+`monotonic_problems(old, new)` (UIDs missing from, or lower in, the new ledger) are available for publishers.
+
 ## Writing an adapter
 
 Add `adapters/<name>.py` exposing `load(path) -> list[MeetingRecord]` (and ideally `convert(data)`). Do all
@@ -125,3 +163,6 @@ fetch time. Put anything else the caller should keep in `provenance`. Nothing ou
 
     cd packages/meeting-ics && python3 -m unittest discover -s tests -t .
     cd packages/meeting-ics && python3 -m pytest -q
+
+`tests/test_icalendar_roundtrip.py` parses built feeds a second time with the `icalendar` library, which is a
+test-only dependency pinned in the repository's `requirements-dev.txt`; those tests skip when it is not installed.
