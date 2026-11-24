@@ -1,0 +1,2 @@
+# Tests need fixtures and dev-only dependencies; keep them out of the sdist (they run from the repository).
+prune tests
