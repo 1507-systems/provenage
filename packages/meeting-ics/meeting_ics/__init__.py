@@ -5,7 +5,10 @@ Calendar building only: no RSVP, attendance or member data is ever part of this 
 """
 from .build import BuildOptions, build, build_with_report
 from .ledger import Ledger
-from .model import MeetingRecord, records_from_json
+from .model import STATUS_ALIASES, STATUS_CANONICAL, STATUS_EMIT, MeetingRecord, records_from_json
+from .validate import SLUG_RE, RecordError, load_input, parse_input, validate_records
 
-__all__ = ["MeetingRecord", "records_from_json", "Ledger", "BuildOptions", "build", "build_with_report"]
-__version__ = "0.1.0"
+__all__ = ["MeetingRecord", "records_from_json", "Ledger", "BuildOptions", "build", "build_with_report",
+           "RecordError", "parse_input", "validate_records", "load_input",
+           "STATUS_EMIT", "STATUS_CANONICAL", "STATUS_ALIASES", "SLUG_RE"]
+__version__ = "0.2.0"

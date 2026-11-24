@@ -11,7 +11,8 @@ License: Apache-2.0 (see the repository root).
 
 ## Layout
 
-- `model.py` MeetingRecord, the source-agnostic input record
+- `model.py` MeetingRecord, the source-agnostic input record, and the status mapping
+- `validate.py` the input contract: the only record validator
 - `ical.py` escape, fold, VTIMEZONE generation
 - `ledger.py` SEQUENCE ledger
 - `build.py` `build(records, options) -> bytes`
@@ -19,15 +20,59 @@ License: Apache-2.0 (see the repository root).
 - `adapters/primegov_normalized.py` the only PrimeGov-aware code
 - `tests/` unittest suite
 
-## Input schema (one record)
+## Input schema
 
-`uid_namespace`, `record_id`, `body`, `meeting_type`, `date` (YYYY-MM-DD local), `start_time` (HH:MM local),
-`timezone` (IANA), `status`, `retrieved_at` (UTC `YYYY-MM-DDTHH:MM:SSZ`), and optional `location`,
-`links` {portal, agenda, packet, minutes, video}, `documents` [{kind, url, publish_date}], `end_time`
-(observed local end), `end_basis`, `topics` (reserved), `provenance` (free-form, carried, never emitted or hashed).
-Status values: `cancelled` (STATUS:CANCELLED, kept), `confirmed` (CONFIRMED, observed),
-`scheduled_not_cancelled` (CONFIRMED plus a STATUS-BASIS note, derived not observed); anything else gets no
-STATUS and an AMBIGUITY note. Full field docs are in `model.py`.
+Input is a JSON array of records, or `{"records": [...], "schema_version": 1}`. It must contain at least one
+record: an empty input is refused, never built into an empty feed. `meeting_ics validate --input FILE` checks a
+file and prints every problem at once (`<path>: <message>`), so you can fix a file in one pass. `build` runs the
+same checks first and writes nothing if any fail. The validator is `meeting_ics/validate.py`; this table is
+documentation of it.
+
+| Field | Type | Required | Rules |
+| --- | --- | --- | --- |
+| `uid_namespace` | string | yes | Letters, digits, `.` `_` `-`; starts with a letter or digit; max 128. Prefix of every UID |
+| `record_id` | string or integer | yes | Stable id within the namespace. Integers (>= 0) become strings. Letters, digits and `. _ : + = / ~ -`; max 256. `namespace + record_id` must be unique in the input |
+| `body_name` | string | one of `body_name` / `body` | Governing body, one line, max 200. `body` is the legacy name for the same field; give one, not both |
+| `meeting_type` | string | yes | One line, max 200 |
+| `date` | string | yes | Local date `YYYY-MM-DD`, a real date, year 1970 to 2100 |
+| `start_time` | string | yes | Local 24-hour `HH:MM` |
+| `end_time` | string or null | no | Observed local end `HH:MM`. Must differ from the start. An end earlier than the start means after midnight and is accepted only if the meeting lasts at most 12 hours |
+| `end_basis` | string or null | no | Label for an observed end (default `source-observed`). Only together with `end_time`. Letters, digits, `. _ -`; max 64 |
+| `timezone` | string | yes | IANA name that exists in tz data, such as `America/Denver` |
+| `status` | string | yes | See the status table. Anything else is an error |
+| `retrieved_at` | string | yes | UTC `YYYY-MM-DDTHH:MM:SSZ`; becomes DTSTAMP |
+| `location` | string or null | no | Max 500, `\n` line breaks allowed |
+| `remote_access` | object or null | no | `{"join_url": http(s) URL or null, "dial_in": string or null}`. Shown in DESCRIPTION and part of the change hash. `{}` and all-null count as null |
+| `links` | object or null | no | `portal`, `agenda`, `packet`, `minutes`, `video`; each an http(s) URL (max 2048, with a host) or null |
+| `documents` | array or null | no | `[{"kind": string, "url": URL or null, "publish_date": string or null}]`. Change hash only, never emitted |
+| `topics` | array or null | no | Strings; reserved, not emitted |
+| `provenance` | object or null | no | Free-form, carried, never inspected, emitted or hashed |
+| `jurisdiction_slug` | string or null | no | Lowercase letters, digits and single hyphens, max 64. Routes the record to a published feed; never emitted or hashed |
+| `body_slug` | string or null | no | Same rule; needs `jurisdiction_slug` |
+
+Blank optional strings (empty or whitespace only) are treated as null; other strings are never trimmed. A record
+that carried `""` in `location` or a link and was built by an older version gets one SEQUENCE bump after the
+upgrade, because `""` and null hash differently. Unknown fields are errors, with a hint for near misses and for
+link URLs given at the top level (`agenda_url` should be `links.agenda`).
+
+Not validated: local times inside a DST gap or overlap (a time in the gap uses the offset before the gap), dates
+in the past, and `uid_domain` and the other build options.
+
+### Status
+
+| Input status | STATUS | Extra line | SUMMARY |
+| --- | --- | --- | --- |
+| `scheduled` | CONFIRMED | none | unchanged |
+| `confirmed` (alias) | CONFIRMED | none | unchanged |
+| `scheduled_not_cancelled` (alias) | CONFIRMED | `<x_prefix>-STATUS-BASIS:derived-from-title-not-observed` | unchanged |
+| `rescheduled` | CONFIRMED | `<x_prefix>-LIFECYCLE:rescheduled` | unchanged |
+| `completed` | CONFIRMED | `<x_prefix>-LIFECYCLE:completed` | unchanged |
+| `postponed` | TENTATIVE | `<x_prefix>-LIFECYCLE:postponed` | prefixed `Postponed: ` |
+| `cancelled`, `canceled` (alias) | CANCELLED | none | unchanged; the event stays in the feed |
+
+Statuses are lowercase. A record with a postponed meeting keeps its original date; if the source gives a new date,
+send `rescheduled`. SEQUENCE is driven only by the change hash, which includes the raw status string and
+`remote_access` when set.
 
 ## Options (`BuildOptions`, or `--config` JSON)
 
@@ -40,14 +85,15 @@ End precedence: record `end_time`, then end rule, then default duration. The end
 
 ## Rules (the contract; as implemented in `build.py`)
 
-1. One VEVENT per record in input order; UID `<uid_namespace>-<record_id>@<uid_domain>`. Two records in one input with the same UID are an error (`ValueError`).
+0. Every record is validated first (see Input schema); any error stops the build before anything is written.
+1. One VEVENT per record in input order; UID `<uid_namespace>-<record_id>@<uid_domain>`. Two records in one input with the same UID are an error (a `RecordError`, which is a `ValueError`).
 2. DTSTAMP is `retrieved_at`, never the wall clock.
 3. DTSTART/DTEND carry `TZID`; a VTIMEZONE is emitted for each zone present.
 4. DTEND derived as above and always labelled as assumed, rule-set or observed.
 5. SUMMARY is meeting_type, prefixed by body unless it already starts with it. Links level shows no agenda text.
-6. DESCRIPTION is labelled authoritative links only (Portal, Agenda, Packet, Minutes, Video); null is omitted.
+6. DESCRIPTION is the labelled authoritative links (Portal, Agenda, Packet, Minutes, Video; null is omitted), then `Join online:` and `Dial-in:` from `remote_access` when present.
 7. URL is the portal link; if absent, an AMBIGUITY note records it.
-8. Status mapping as above.
+8. Status mapping as in the Status table.
 9. LOCATION when present, else AMBIGUITY `no-location`.
 10. SEQUENCE from the ledger, keyed by UID, storing critical_hash, docs_hash, sequence, last_modified. First sight
     is 0; if the critical hash (body, date, start_time, timezone, status, location, meeting_type, derived end and
@@ -64,6 +110,9 @@ End precedence: record `end_time`, then end rule, then default duration. The end
     python3 -m meeting_ics build --input records.json --output feed.ics --ledger sequence.json --config opts.json
 
 or, once installed, `meeting-ics build ...`. `--adapter primegov_normalized --uid-namespace NAME` reads a source file through an adapter instead; the namespace is required.
+
+Check an input file without building: `python3 -m meeting_ics validate --input records.json` prints `ok records=N`
+(exit 0) or one `<path>: <message>` line per problem and a summary (exit 2). All errors, from any command, exit 2.
 
 ## Writing an adapter
 

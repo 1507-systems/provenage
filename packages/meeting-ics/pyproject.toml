@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "provenage-meeting-ics"
-version = "0.1.0"
+version = "0.2.0"
 description = "Source-agnostic civic meeting records to an RFC 5545 iCalendar feed. Standard library only."
 readme = "README.md"
 requires-python = ">=3.11"
