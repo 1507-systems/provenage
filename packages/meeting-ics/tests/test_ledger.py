@@ -111,7 +111,11 @@ class AtomicWriteSafety(unittest.TestCase):
 
     def test_output_is_world_readable(self):
         out = os.path.join(self.dir, "out.ics")
-        atomic_write(out, b"x")
+        old = os.umask(0o022)  # pin: the mode depends on the process umask
+        try:
+            atomic_write(out, b"x")
+        finally:
+            os.umask(old)
         self.assertEqual(os.stat(out).st_mode & 0o777, 0o644)
 
     def test_output_honours_umask(self):
