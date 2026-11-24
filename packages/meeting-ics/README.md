@@ -18,6 +18,10 @@ building, no dependencies beyond Python 3.11 or later. Every name below is ficti
 
         python3 -m venv .venv
         . .venv/bin/activate
+        pip install provenage-meeting-ics
+
+   Or, to install straight from the repository instead:
+
         pip install "git+https://github.com/1507-systems/provenage#subdirectory=packages/meeting-ics"
 
 2. Get the template, a file with only the header row, and fill in one row per meeting in a spreadsheet:

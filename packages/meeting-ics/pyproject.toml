@@ -31,7 +31,7 @@ Homepage = "https://github.com/1507-systems/provenage"
 Repository = "https://github.com/1507-systems/provenage"
 Issues = "https://github.com/1507-systems/provenage/issues"
 Changelog = "https://github.com/1507-systems/provenage/blob/main/packages/meeting-ics/CHANGELOG.md"
-Documentation = "https://github.com/1507-systems/provenage/blob/main/packages/meeting-ics/README.md"
+Documentation = "https://github.com/1507-systems/provenage/blob/main/docs/CALENDAR.md"
 
 [project.scripts]
 meeting-ics = "meeting_ics.cli:main"
