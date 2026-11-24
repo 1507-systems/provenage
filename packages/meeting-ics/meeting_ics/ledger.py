@@ -9,6 +9,7 @@ import datetime
 import hashlib
 import json
 import os
+import tempfile
 from typing import Dict, List
 
 _KEYS = ("critical_hash", "docs_hash", "sequence", "last_modified")
@@ -20,16 +21,19 @@ def sha(obj):
 
 
 def atomic_write(path, data):
-    """Write bytes to path + '.tmp', fsync, then os.replace, so a reader never sees a half-written file. The
-    temporary file is removed if anything fails."""
+    """Write bytes to a new, uniquely named temporary file in the same directory (created exclusively, so a
+    pre-existing file or symlink is never followed), fsync, then os.replace onto path, so a reader never sees a
+    half-written file. The temporary file is removed if anything fails."""
     path = os.fspath(path)
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    tmp = path + ".tmp"
+    directory = os.path.dirname(os.path.abspath(path))
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix=os.path.basename(path) + ".", suffix=".tmp")  # O_EXCL, 0600
     try:
-        with open(tmp, "wb") as f:
+        with os.fdopen(fd, "wb") as f:
             f.write(data)
             f.flush()
             os.fsync(f.fileno())
+        os.chmod(tmp, 0o644)
         os.replace(tmp, path)
     except BaseException:
         try:

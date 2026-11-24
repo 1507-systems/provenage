@@ -2,6 +2,19 @@
 
 ## 0.2.0 (unreleased)
 
+### Fixed (review follow-ups)
+
+- Lone UTF-16 surrogates (U+D800-U+DFFF) are rejected in text and URL fields instead of failing at encode time.
+- The duplicate-UID check runs for every record with a valid `uid_namespace` and `record_id`, so it is reported
+  in the same pass as other errors.
+- URLs: a malformed URL is reported as "URL is malformed"; URLs with a user name or password (`@` in the
+  host part) or a backslash are rejected.
+- `atomic_write` creates a unique temporary file exclusively in the target directory, so it never follows a
+  symlink planted at a predictable temporary name.
+- `BuildOptions` rejects non-positive and non-numeric durations (default duration and end rules) and a
+  `prodid` containing `,` `;` `\\` or `"`; the CLI reports bad config values as `meeting_ics: error:` (exit 2).
+- `parse_ics` unfolds continuation lines in linear time.
+
 ### Added
 
 - Input contract and validation (`meeting_ics/validate.py`). Every record is checked before a build, all

@@ -48,22 +48,40 @@ class BuildOptions:
         """Options from a JSON object. JSON null becomes None. Unknown keys raise ValueError, so a misspelt or
         stray key (a pasted token, say) fails loudly instead of being ignored."""
         d = dict(d)
-        if "default_duration_minutes" in d:
-            d["default_duration"] = datetime.timedelta(minutes=d.pop("default_duration_minutes"))
-        if "default_duration_hours" in d:
-            d["default_duration"] = datetime.timedelta(hours=d.pop("default_duration_hours"))
+        for key, unit in (("default_duration_minutes", "minutes"), ("default_duration_hours", "hours")):
+            if key in d:
+                n = d.pop(key)
+                if isinstance(n, bool) or not isinstance(n, (int, float)):
+                    raise ValueError("%s must be a number, got %r" % (key, n))
+                try:
+                    d["default_duration"] = datetime.timedelta(**{unit: n})
+                except (OverflowError, ValueError):
+                    raise ValueError("%s is out of range: %r" % (key, n)) from None
         known = {f.name for f in fields(cls)}
         unknown = sorted(str(k) for k in d if k not in known)
         if unknown:
             raise ValueError("unknown option(s): " + ", ".join(unknown))
-        d["end_rules"] = [tuple(r) if isinstance(r, (list, tuple)) else (r["match"], r)
-                          for r in (d.get("end_rules") or [])]
+        rules = []
+        raw_rules = d.get("end_rules") or []
+        if not isinstance(raw_rules, (list, tuple)):
+            raise ValueError("end_rules must be a list, got %r" % (raw_rules,))
+        for r in raw_rules:
+            if isinstance(r, (list, tuple)):
+                rules.append(tuple(r))
+            elif isinstance(r, dict) and "match" in r:
+                rules.append((r["match"], r))
+            else:
+                raise ValueError("each end_rules entry must be [substring, rule] or an object with a \"match\" "
+                                 "key, got %r" % (r,))
+        d["end_rules"] = rules
         return cls(**d)
 
     def validate(self):
         """Raise ValueError for an option that could break the feed or inject lines into it."""
-        if not isinstance(self.prodid, str) or not self.prodid or _CONTROL_RE.search(self.prodid):
-            raise ValueError("prodid must be non-empty text without control characters")
+        if (not isinstance(self.prodid, str) or not self.prodid or _CONTROL_RE.search(self.prodid)
+                or any(c in self.prodid for c in ',;\\"')):
+            raise ValueError("prodid must be non-empty text without control characters or any of , ; \\ \"")
+        _check_duration("default_duration", self.default_duration)
         if not isinstance(self.uid_domain, str) or not _UID_DOMAIN_RE.fullmatch(self.uid_domain):
             raise ValueError("uid_domain must be a host name like example.org, got %r" % (self.uid_domain,))
         if not isinstance(self.x_prefix, str) or not _X_PREFIX_RE.fullmatch(self.x_prefix):
@@ -80,13 +98,48 @@ class BuildOptions:
             v = getattr(self, name)
             if v is not None and not isinstance(v, str):
                 raise ValueError("%s must be text or null" % name)
+        if not isinstance(self.end_rules, (list, tuple)):
+            raise ValueError("end_rules must be a list, got %r" % (self.end_rules,))
         for i, item in enumerate(self.end_rules):
-            rule = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else None
+            if not (isinstance(item, (list, tuple)) and len(item) == 2):
+                raise ValueError("end_rules[%d] must be [substring, rule] or an object with a \"match\" key" % i)
+            match, rule = item
+            if not isinstance(match, str) or not match:
+                raise ValueError("end_rules[%d] match must be non-empty text, got %r" % (i, match))
+            if isinstance(rule, str):
+                rule = {"end_local": rule}
+            if isinstance(rule, datetime.timedelta):
+                _check_duration("end_rules[%d]" % i, rule)
+            elif isinstance(rule, dict):
+                if "end_local" not in rule and "duration_minutes" not in rule:
+                    raise ValueError("end_rules[%d] needs end_local or duration_minutes" % i)
+                if "end_local" in rule:
+                    el = rule["end_local"]
+                    if not (isinstance(el, str) and re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", el)):
+                        raise ValueError("end_rules[%d].end_local must be HH:MM, got %r" % (i, el))
+                if "duration_minutes" in rule:
+                    _check_duration("end_rules[%d].duration_minutes" % i, rule["duration_minutes"], minutes=True)
+            else:
+                raise ValueError("end_rules[%d] rule must be \"HH:MM\", a duration or an object, got %r" % (i, rule))
             basis = rule.get("basis") if isinstance(rule, dict) else None
             if basis is not None and not (isinstance(basis, str) and len(basis) <= MAX_BASIS
                                           and _BASIS_RE.fullmatch(basis)):
                 raise ValueError("end_rules[%d].basis must match [A-Za-z0-9][A-Za-z0-9._-]* (max %d), got %r"
                                  % (i, MAX_BASIS, basis))
+
+
+def _check_duration(what, value, minutes=False):
+    """A duration must be a whole number of minutes, 1 minute to 366 days (a timedelta unless minutes=True).
+    DTEND is written to whole seconds, so anything shorter or fractional could give DTEND == DTSTART."""
+    if minutes:
+        ok = (isinstance(value, (int, float)) and not isinstance(value, bool) and value == value
+              and 1 <= value <= 24 * 60 * 366 and float(value).is_integer())
+    else:
+        ok = (isinstance(value, datetime.timedelta)
+              and datetime.timedelta(minutes=1) <= value <= datetime.timedelta(days=366)
+              and value.total_seconds() % 60 == 0)
+    if not ok:
+        raise ValueError("%s must be a positive whole number of minutes (at most 366 days), got %r" % (what, value))
 
 
 def _duration_basis(delta):

@@ -136,5 +136,15 @@ class Parser(unittest.TestCase):
         self.assertEqual(unescape_text("end\\"), "end\\")
 
 
+class Unfolding(unittest.TestCase):
+    def test_many_continuation_lines_unfold_correctly(self):
+        from meeting_ics.check import parse_ics
+        n = 20000
+        body = "X-BIG:a\r\n" + " b\r\n" * n
+        data = ("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" + body + "END:VCALENDAR\r\n").encode()
+        cal = parse_ics(data)
+        self.assertEqual(cal.get("X-BIG"), "a" + "b" * n)
+
+
 if __name__ == "__main__":
     unittest.main()
