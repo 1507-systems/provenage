@@ -227,6 +227,28 @@ class Cli(unittest.TestCase):
                 self.assertNotIn("Traceback", err)
                 self.assertFalse(os.path.exists(self.path("o%d.ics" % i)))
 
+    def test_config_not_an_object_and_lone_surrogates(self):
+        for bad in ([1, 2], "x", 5):
+            with self.subTest(bad):
+                with self.assertRaisesRegex(ValueError, "config must be a JSON object"):
+                    BuildOptions.from_dict(bad)
+        for name in ("prodid", "calendar_name", "calendar_description"):
+            with self.subTest(name):
+                opts = BuildOptions(uid_domain="example.org", **{name: "a\ud800b"})
+                with self.assertRaisesRegex(ValueError, "%s contains an invalid character .U.D800. at position 1"
+                                            % name):
+                    opts.validate()
+        inp = self.write("in.json", [good()])
+        code, _, err = self.run_cli("build", "--input", inp, "--output", self.path("o.ics"),
+                                    "--ledger", self.path("l.json"), "--config", self.write("c.json", [1, 2]))
+        self.assertEqual(code, 2)
+        self.assertIn("config must be a JSON object", err)
+
+    def test_end_local_must_be_zero_padded(self):
+        with self.assertRaises(ValueError):
+            BuildOptions(uid_domain="example.org", end_rules=[("Regular", {"end_local": "9:00"})]).validate()
+        BuildOptions(uid_domain="example.org", end_rules=[("Regular", {"end_local": "09:00"})]).validate()
+
     def test_other_errors(self):
         code, _, err = self.run_cli("validate", "--input", self.path("missing.json"))
         self.assertEqual(code, 2)

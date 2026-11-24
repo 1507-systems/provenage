@@ -1,1 +1,2 @@
 packages/meeting-ics/tests/fixtures/**/*.ics -text
+packages/meeting-ics/tests/fixtures/demo-town/** -text

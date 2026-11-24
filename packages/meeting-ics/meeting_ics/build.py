@@ -47,6 +47,8 @@ class BuildOptions:
     def from_dict(cls, d):
         """Options from a JSON object. JSON null becomes None. Unknown keys raise ValueError, so a misspelt or
         stray key (a pasted token, say) fails loudly instead of being ignored."""
+        if not isinstance(d, dict):
+            raise ValueError("config must be a JSON object")
         d = dict(d)
         for key, unit in (("default_duration_minutes", "minutes"), ("default_duration_hours", "hours")):
             if key in d:
@@ -78,6 +80,13 @@ class BuildOptions:
 
     def validate(self):
         """Raise ValueError for an option that could break the feed or inject lines into it."""
+        for name in ("prodid", "calendar_name", "calendar_description"):
+            v = getattr(self, name)
+            if isinstance(v, str):
+                m = re.search("[\ud800-\udfff]", v)
+                if m:
+                    raise ValueError("%s contains an invalid character (U+%04X) at position %d"
+                                     % (name, ord(m.group()), m.start()))
         if (not isinstance(self.prodid, str) or not self.prodid or _CONTROL_RE.search(self.prodid)
                 or any(c in self.prodid for c in ',;\\"')):
             raise ValueError("prodid must be non-empty text without control characters or any of , ; \\ \"")

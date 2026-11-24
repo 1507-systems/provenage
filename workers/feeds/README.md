@@ -48,7 +48,7 @@ python3 scripts/build_and_publish.py --input records.json --config set.json --bu
     [--public-base https://host/slug] [--adapter NAME --uid-namespace NS [--retrieved-at TS|now]]
 ```
 
-`--target` has no default. `--persist-to` is only for `local`. `--adapter`, `--uid-namespace` and `--retrieved-at` are passed to the builder unchanged. `--public-base` prints `Public URL: <base>/<key>` for each feed after a successful (non-dry) run. Run `npm ci` once first: the script uses the wrangler in `node_modules/.bin`.
+`--target` has no default. `--work-dir` is optional: by default the script builds in a fresh private temporary directory and removes it afterwards. A directory you name must be new, empty, or one this script already used (it carries a `.provenage-publish-workdir` marker file); anything else is refused (exit 2) and left untouched. Only `out/` and `ledger.json` inside it are ever rewritten. `--lock-file` defaults to a private per-user directory under the system temp directory; the lock file is opened without following symlinks. `--persist-to` is only for `local`. `--adapter`, `--uid-namespace` and `--retrieved-at` are passed to the builder unchanged. `--public-base` prints `Public URL: <base>/<key>` for each feed after a successful (non-dry) run. Run `npm ci` once first: the script uses the wrangler in `node_modules/.bin`.
 
 ### Keys
 
@@ -65,10 +65,12 @@ The ledger must stay under `state/`. Never put it under `calendar/`: `calendar/<
 ### What a run does
 
 1. Takes a local lock (exit 3 if another publish holds it).
-2. Reads `calendar/index.json` and `state/ledger.json`. A failed read is never treated as an empty ledger. A missing ledger next to an existing index is refused (exit 5) unless you pass `--init-ledger`, which resets every SEQUENCE.
-3. Builds into a work directory. Every built feed must match its index sha256.
+2. Reads `calendar/index.json` and `state/ledger.json`. A failed read is never treated as an empty ledger. A missing ledger next to an existing index is refused (exit 5) unless you pass `--init-ledger`, which resets every SEQUENCE. **The first publish to a remote bucket needs `--init-ledger`** (with `--target remote` a missing ledger is always refused without it), because a "missing" read over the network is not proof that the bucket is new. Use it only for a bucket you know is new, and not again afterwards. The key is treated as missing only when wrangler's output positively says the key does not exist (`NoSuchKey`, code 10007, or the message "The specified key does not exist"); any other failure, including a missing bucket or an authentication error, is a storage error (exit 6). If a real not-found is reported as exit 6, check the wrangler output printed with the error.
+3. Builds into a work directory (the builder runs offline, from the package directory with absolute paths, `python -E`, and only an allowlisted environment: no `CLOUDFLARE_*` or other token-like variable reaches it; only wrangler gets your environment). Every built feed must match its index sha256.
 4. Checks the new ledger against the old one: no UID removed, no SEQUENCE lowered (exit 5).
 5. Shrink guard: refuses (exit 4) a set with 0 events, a drop of more than 50% of all events, a drop of more than 50% in one jurisdiction, a disappeared jurisdiction, or a previous index it cannot read. `--force` prints each reason as `WARNING (forced)` and continues.
+
+   **Recovery after an unreadable previous index:** if the stored `calendar/index.json` is corrupt, truncated or a different schema (for example after a failed readback left a bad object in the bucket), every run exits 4 with `previous calendar/index.json is unreadable`. That is the one case where `--force` is the recovery step: run `--dry-run` first, confirm the plan looks right (the new set has the events you expect), then run once with `--force`. The new index overwrites the bad one. Do not use `--force` for a real shrink (the other refusal reasons) until you have confirmed the drop is intended, and never as a default; it disables the guard that protects subscribers from a bad input file.
 6. Prints the plan (`plan: PUT|SKIP|ORPHAN ...`; the format is stable for log parsing). `--dry-run` stops here, after every check, and writes nothing.
 7. Re-reads the ledger and stops (exit 5) if it changed since step 2.
 8. Uploads in this order: `state/ledger.prev.json`, `state/ledger.json` (read back and compared), the changed feeds sorted by key, then `calendar/index.json` (read back and compared). Only changed objects are uploaded, so a rerun with identical input does nothing (`no changes`).
@@ -83,11 +85,12 @@ A feed whose body leaves the input stays in the bucket and stays servable. The r
 |---|---|
 | 0 | success, including "no changes" |
 | 1 | build failed, or a built file does not match its index sha256 |
-| 2 | usage or config error |
+| 2 | usage or config error, including a work directory or lock file that cannot be used safely |
 | 3 | lock held |
 | 4 | shrink guard refused |
 | 5 | ledger integrity refused |
-| 6 | storage error |
+| 6 | storage or file-system error (wrangler failure, readback mismatch, disk or permission problem while running) |
+| 7 | unexpected internal error (a bug or unexpected builder output; never reported as exit 1) |
 
 ### Limits to know
 

@@ -6,6 +6,7 @@ import datetime
 import difflib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,11 @@ import unittest
 from meeting_ics import check
 
 from tests import demo_town
+
+try:
+    import icalendar
+except ImportError:  # optional; the test is skipped without it
+    icalendar = None
 
 try:
     import zoneinfo
@@ -210,10 +216,38 @@ class DemoTown(unittest.TestCase):
         self.assertIn("+1 555 0100, ID 106", d)
 
     def test_everything_is_fictional(self):
-        blob = b"".join(self.built.values()).decode()
-        for needle in ("longmont", "Longmont", "@gmail", "@1507", "https://www."):
-            self.assertNotIn(needle, blob)
+        """Every golden output and every input fixture uses only reserved example hosts, the fixed UID domain and
+        555-01xx phone numbers. A real host, e-mail address or phone number fails the test."""
+        blobs = [b.decode().replace("\r\n ", "") for b in self.built.values()]
+        for name in sorted(os.listdir(demo_town.FIXTURES)):
+            path = os.path.join(demo_town.FIXTURES, name)
+            if os.path.isfile(path):
+                with open(path, encoding="utf-8") as f:
+                    blobs.append(f.read())
+        blob = "\n".join(blobs)
+        self.assertNotIn("longmont", blob.lower())
+        hosts = set(re.findall(r"https?://([^/\s\"\\,;]+)", blob))
+        self.assertTrue(hosts)
+        for host in hosts:
+            self.assertRegex(host, r"^([a-z0-9-]+\.)*example(\.(com|org|net))?$", host)
+        for addr in re.findall(r"[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+)", blob):
+            self.assertEqual(addr, DOM[1:])
+        self.assertNotIn("https://www.", blob)
+        no_hashes = re.sub(r"[0-9a-f]{16,}", "", blob)  # sha256 values contain long digit runs
+        for phone in re.findall(r"\+\d[\d ()-]{6,}\d|\(?\d{3}\)?[ -]\d{3}[ -]\d{4}", no_hashes):
+            digits = re.sub(r"\D", "", phone)
+            self.assertRegex(digits, r"^1?55501\d\d$", phone)
 
+    @unittest.skipIf(icalendar is None, "icalendar is not installed")
+    def test_every_golden_ics_parses_with_icalendar(self):
+        names = [k for k in self.expected if k.endswith(".ics")]
+        self.assertEqual(len(names), 6)
+        for key in names:
+            with self.subTest(key):
+                cal = icalendar.Calendar.from_ical(self.expected[key])
+                events = [c for c in cal.walk() if c.name == "VEVENT"]
+                self.assertEqual(len(events), COUNTS[os.path.basename(key)[:-4]])
+                self.assertEqual(str(cal["VERSION"]), "2.0")
 
 if __name__ == "__main__":
     unittest.main()

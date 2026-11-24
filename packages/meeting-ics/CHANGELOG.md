@@ -8,7 +8,17 @@
   outputs), `tests/regen_demo_town.py [--check]`, golden tests, and a README quickstart from the CSV template to a
   subscribable feed.
 
+### Changed
+
+- `end_local` in end rules must now be zero-padded `HH:MM` (for example `09:00`). The old parser also accepted
+  `9:00`; that value is now rejected with an error.
+
 ### Fixed (review follow-ups)
+
+- `atomic_write` honours the caller's umask (`0666 & ~umask`) instead of forcing mode 0644.
+- A config file that is not a JSON object fails with "config must be a JSON object".
+- A lone surrogate in `prodid`, `calendar_name` or `calendar_description` is rejected by
+  `BuildOptions.validate` with a clear message.
 
 - Lone UTF-16 surrogates (U+D800-U+DFFF) are rejected in text and URL fields instead of failing at encode time.
 - The duplicate-UID check runs for every record with a valid `uid_namespace` and `record_id`, so it is reported
