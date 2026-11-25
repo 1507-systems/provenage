@@ -262,6 +262,15 @@ def _check_cross_jurisdiction_uids(records) -> None:
                              % (ns, rid, other, j))
 
 
+def prepare_records(records, meta: Optional[SetMeta] = None):
+    """The set-level steps that precede record validation: apply the per-jurisdiction uid_namespace, then refuse
+    a UID shared by two jurisdictions. Shared by build_feedset and `validate --config` so the pre-publish check
+    cannot disagree with the build."""
+    records = _apply_namespaces(list(records), meta.uid_namespaces if meta else {})
+    _check_cross_jurisdiction_uids(records)
+    return records
+
+
 def _uid(r, opts):
     return "%s-%s@%s" % (r.uid_namespace, r.record_id, opts.uid_domain)
 
@@ -325,8 +334,7 @@ def build_feedset(records, options: Optional[BuildOptions] = None, ledger: Optio
     opts.validate()
     meta = meta or SetMeta({}, {}, _empty_aliases())
     names = jurisdiction_names or {}
-    records = _apply_namespaces(list(records), meta.uid_namespaces)
-    _check_cross_jurisdiction_uids(records)
+    records = prepare_records(records, meta)
     records = validate_records(records)  # rejects empty input and every bad record
     _check_routing(records, opts)
     _check_meta(meta, names, {r.jurisdiction_slug for r in records})

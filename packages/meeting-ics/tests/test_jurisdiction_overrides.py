@@ -266,6 +266,25 @@ class MultiInput(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn(bad + ": row", err)
 
+    def test_validate_with_config_accepts_what_build_set_accepts(self):
+        code, out, err = self.run_cli("validate", *self.common, "--input", self.p["demo-town"],
+                                      "--input", self.p["longmont-co"], "--config", self.cfg)
+        self.assertEqual((code, out.strip()), (0, "ok records=22"), err)
+
+    def test_validate_without_config_still_reports_the_duplicate(self):
+        code, _o, err = self.run_cli("validate", *self.common, "--input", self.p["demo-town"],
+                                     "--input", self.p["longmont-co"])
+        self.assertEqual(code, 2)
+        self.assertIn("duplicate UID", err)
+
+    def test_validate_with_config_reports_cross_jurisdiction_collision(self):
+        with open(self.cfg, "w", encoding="utf-8") as f:
+            json.dump(dict(demo_cfg(), jurisdictions={"demo-town": {"name": "D"}, "longmont-co": {"name": "L"}}), f)
+        code, _o, err = self.run_cli("validate", *self.common, "--input", self.p["demo-town"],
+                                     "--input", self.p["longmont-co"], "--config", self.cfg)
+        self.assertEqual(code, 2)
+        self.assertIn("UID collision across jurisdictions", err)
+
     def test_single_input_still_works(self):
         code, out, _e = self.run_cli("validate", *self.common, "--input", self.p["demo-town"])
         self.assertEqual((code, out.strip()), (0, "ok records=11"))

@@ -294,7 +294,7 @@ only `load_set_meta`.
 Repeat `--input` (`build-set` and `validate`) to read several files, for example one CSV per jurisdiction; records are
 concatenated in the order given, problems are prefixed with the file name, and the same `--adapter`,
 `--uid-namespace` and `--retrieved-at` apply to every file (use the per-jurisdiction `uid_namespace` to separate
-them). The publisher script takes `--input` once and `--more-input FILE` any number of times.
+them; `validate --config set.json` applies those namespaces, so it accepts exactly what `build-set` accepts). The publisher script takes `--input` once and `--more-input FILE` any number of times.
 
 ### SEQUENCE ledger
 

@@ -125,7 +125,12 @@ def _build_set(a):
 
 
 def _validate(a):
-    records = validate_records(load_many(a.input, a.adapter, a.uid_namespace, a.retrieved_at))
+    records = load_many(a.input, a.adapter, a.uid_namespace, a.retrieved_at)
+    if a.config:  # same set-level steps as build-set, so the check agrees with the build
+        with open(a.config, encoding="utf-8") as f:
+            _options, _names, meta = feedset.load_set_meta(json.load(f))
+        records = feedset.prepare_records(records, meta)
+    records = validate_records(records)
     print("ok records=%d" % len(records))
 
 
@@ -187,6 +192,8 @@ def main(argv=None):
     s.set_defaults(func=_build_set, tail="nothing written")
     v = sub.add_parser("validate", help="check an input file; prints 'ok records=N' or every problem")
     v.add_argument("--input", required=True, action="append", help="records file; may be repeated")
+    v.add_argument("--config", help="set config (as for build-set); applies its per-jurisdiction uid_namespace "
+                                    "and checks UIDs across jurisdictions")
     v.add_argument("--adapter")
     v.add_argument("--uid-namespace", help="required with --adapter; prefix of every UID")
     v.add_argument("--retrieved-at", help=RETRIEVED_HELP)
