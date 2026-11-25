@@ -206,6 +206,14 @@ def alias_problems(prev, new) -> List[str]:
                     "body" if kind == "bodies" else "jurisdiction", src, json.dumps(p_al[kind][src]),
                     json.dumps(n_al[kind][src])))
     dev = {j for j, v in (prev.get("jurisdictions") or {}).items() if v.get("status") == "dev"}
+    # Permanence: the exemption is read from the previous index, so a live -> dev flip must itself be refused,
+    # otherwise two ordinary publishes (flip, then drop) would defeat the guard below.
+    n_jur = new.get("jurisdictions") or {}
+    p_jur = prev.get("jurisdictions") or {}
+    for j in sorted(n_jur):
+        if n_jur[j].get("status") == "dev" and j not in dev and (
+                j in p_jur or any(f["key"].startswith("calendar/%s/" % j) for f in prev["feeds"])):
+            problems.append("jurisdiction %s status changed from live to dev (permanence)" % j)
     new_keys = {f["key"] for f in new["feeds"]}
     for f in sorted(prev["feeds"], key=lambda e: e["key"]):
         k = f["key"]

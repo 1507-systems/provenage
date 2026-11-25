@@ -191,9 +191,9 @@ order. A change to anything frozen is a `v2` served beside `v1`.
 
 ### Permanence
 
-Issued `/mix/v1/` addresses keep working for as long as Provenage serves feeds. The publisher enforces what that
-needs: an alias, once recorded, is never removed or changed, and a feed in a non-`dev` jurisdiction cannot disappear
-from the index unless an alias covers it.
+Issued `/mix/v1/` addresses keep working for as long as Provenage serves feeds. The publisher refuses (exit 4,
+overridable only by an explicit `--force`) changes that would break one: an alias, once recorded, is never removed or
+changed, a feed in a non-`dev` jurisdiction cannot disappear from the index unless an alias covers it, and a live jurisdiction cannot be switched to `dev` without that same explicit override. Marking a live jurisdiction `dev` is a maintainer decision that withdraws this promise for it; it is not done for a jurisdiction with issued addresses.
 
 Exemption: a jurisdiction with `status: "dev"` (test data, such as a slug kept only for demonstration) carries no
 promise. Its feeds may be removed or replaced with different data by the publisher (removing a whole one needs a confirmed `--force` run), and the builder page labels them "Test data". Do not rely on an address that names one. Fictional `xx` places are test data for the same reason.
