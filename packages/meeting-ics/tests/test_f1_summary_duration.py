@@ -90,7 +90,9 @@ class DefaultDuration(unittest.TestCase):
     def test_bad_values(self):
         for cfg in ({"default_duration": "90"}, {"default_duration": "PT0S"}, {"default_duration": "P"},
                     {"default_duration": "PT30S"}, {"default_duration": "P9999999999W"},
-                    {"default_duration": "PT1H", "default_duration_hours": 2}):
+                    {"default_duration": "PT1H", "default_duration_hours": 2},
+                    {"default_duration_hours": 2, "default_duration_minutes": 30},
+                    {"default_duration": 90, "default_duration_hours": 2}):
             with self.subTest(cfg=cfg), self.assertRaises(ValueError):
                 BuildOptions.from_dict(cfg).validate()
 

@@ -51,6 +51,10 @@ class BuildOptions:
         if not isinstance(d, dict):
             raise ValueError("config must be a JSON object")
         d = dict(d)
+        given = [k for k in ("default_duration", "default_duration_hours", "default_duration_minutes") if k in d]
+        if len(given) > 1:
+            raise ValueError("give only one of default_duration, default_duration_hours, default_duration_minutes, got "
+                             + ", ".join(given))
         if isinstance(d.get("default_duration"), str):
             # ISO 8601 / RFC 5545 duration such as "PT90M" or "PT2H30M"; stored as a timedelta
             secs = _duration_seconds(d["default_duration"])
@@ -61,8 +65,6 @@ class BuildOptions:
                 d["default_duration"] = datetime.timedelta(seconds=secs)
             except OverflowError:
                 raise ValueError("default_duration is out of range: %r" % (d["default_duration"],)) from None
-            if "default_duration_minutes" in d or "default_duration_hours" in d:
-                raise ValueError("give default_duration or default_duration_minutes/_hours, not both")
         for key, unit in (("default_duration_minutes", "minutes"), ("default_duration_hours", "hours")):
             if key in d:
                 n = d.pop(key)
