@@ -1,0 +1,17 @@
+{
+  "name": "provenage-site-tests",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Validation-only tests for the static builder page. The page itself has no dependencies and no build step.",
+  "type": "module",
+  "scripts": {
+    "test:unit": "node --test test/unit/*.test.mjs",
+    "test:e2e": "playwright test",
+    "test": "npm run test:unit && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.64.1",
+    "playwright-core": "1.64.1"
+  }
+}
