@@ -429,7 +429,9 @@ function applySelectionText(text) {
         problems.push(`${label} (not found)`);
         continue;
       }
-      if (refCount() >= model.max && !sel.get(jSlug)) {
+      const cur = sel.get(jSlug);
+      const adds = body === 'all' ? (cur?.all ? 0 : 1 - (cur?.bodies.size ?? 0)) : cur?.all || cur?.bodies.has(body) ? 0 : 1;
+      if (adds > 0 && refCount() + adds > model.max) {
         problems.push(`${label} (over the ${model.max} calendar limit)`);
         continue;
       }

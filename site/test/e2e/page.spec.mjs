@@ -117,6 +117,34 @@ test('32-feed cap: the 33rd box disables with the cap message; ticks free it aga
   expect(new URL(page.url()).hash.length).toBeLessThanOrEqual(1536 + 4);
 });
 
+function bigCity(count) {
+  const doc = structuredClone(fixture);
+  for (let i = 1; i <= count; i++) {
+    const b = `board-${String(i).padStart(2, '0')}`;
+    doc.feeds.push({ body: b, body_name: `Board ${i}`, cancelled: 0, events: 1, href: `x/${b}.ics`, jurisdiction: 'big-city', key: `calendar/big-city/${b}.ics`, kind: 'body', sha256: '0'.repeat(64), size: 100, title: 'x' });
+  }
+  doc.jurisdictions['big-city'] = { name: 'Big City', short_name: 'Big', status: 'live' };
+  return doc;
+}
+
+test('fragment with 40 bodies in one place ticks 32, lists the other 8, and issues an address', async ({ page }) => {
+  const names = Array.from({ length: 40 }, (_, i) => `board-${String(i + 1).padStart(2, '0')}`);
+  await open(page, `#v1=big-city.${names.join('.')}`, bigCity(40));
+  await expect(page.locator('details.group input[type=checkbox]:checked')).toHaveCount(32);
+  await expect(page.locator('#restore li')).toHaveCount(8);
+  await expect(page.locator('#restore')).toContainText('big-city.board-33 (over the 32 calendar limit)');
+  expect(await page.locator('#address').inputValue()).toContain('/mix/v1/big-city.board-01.');
+});
+
+test('fragment over the index max_refs (3) ticks only 3 and lists the rest', async ({ page }) => {
+  const doc = bigCity(6);
+  doc.mix.max_refs = 3;
+  await open(page, '#v1=big-city.board-01.board-02.board-03.board-04.board-05.board-06', doc);
+  await expect(page.locator('details.group input[type=checkbox]:checked')).toHaveCount(3);
+  await expect(page.locator('#restore li')).toHaveCount(3);
+  await expect(page.locator('#restore')).toContainText('(over the 3 calendar limit)');
+});
+
 test('over the size limit: no address is issued and the page says why', async ({ page }) => {
   const doc = structuredClone(fixture);
   doc.mix.issue_max_bytes = 2000;
