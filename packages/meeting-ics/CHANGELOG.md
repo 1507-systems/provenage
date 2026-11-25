@@ -14,6 +14,12 @@
   renamed or retired slugs. `build-set` exits 2 when an alias source is a current feed or jurisdiction, a target is
   not in the set, or a target is itself an alias source.
 - `feedset.load_set_meta` returns the extra settings; `load_set_config` keeps its two-value return.
+- Set config: each `jurisdictions.<slug>` may override `uid_namespace`, `prodid`, `calendar_description`,
+  `default_duration*` and `end_rules`, so one set can hold jurisdictions with different settings. Absent keys keep
+  the set-wide value; a config without them builds byte-identical feeds.
+- `build-set` refuses one UID under two jurisdictions (`UID collision across jurisdictions`).
+- `build-set` and `validate` accept a repeated `--input`; the publisher script gains `--more-input`.
+- `build_feedset` validates the `SetMeta` it receives, not only `load_set_meta`.
 
 ### Changed
 

@@ -45,7 +45,7 @@ Tests use a fake R2 binding and run in plain Node via vitest. They can be moved 
 ```
 python3 scripts/build_and_publish.py --input records.json --config set.json --bucket <bucket> \
     --target {local,remote} [--persist-to DIR] [--dry-run] [--force] [--init-ledger] \
-    [--public-base https://host/slug] [--adapter NAME --uid-namespace NS [--retrieved-at TS|now]]
+    [--more-input FILE ...] [--public-base https://host/slug] [--adapter NAME --uid-namespace NS [--retrieved-at TS|now]]
 ```
 
 `--target` has no default. `--work-dir` is optional: by default the script builds in a fresh private temporary directory and removes it afterwards. A directory you name must be new, empty, or one this script already used (it carries a `.provenage-publish-workdir` marker file); anything else is refused (exit 2) and left untouched. Only `out/` and `ledger.json` inside it are ever rewritten. `--lock-file` defaults to a private per-user directory under the system temp directory; the lock file is opened without following symlinks. `--persist-to` is only for `local`. `--adapter`, `--uid-namespace` and `--retrieved-at` are passed to the builder unchanged. `--public-base` prints `Public URL: <base>/<key>` for each feed after a successful (non-dry) run. Run `npm ci` once first: the script uses the wrangler in `node_modules/.bin`.

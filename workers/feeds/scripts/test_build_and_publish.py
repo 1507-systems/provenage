@@ -646,6 +646,15 @@ class Exits(Base):
         self.assertEqual(cm.exception.code, 2)
 
 
+class MoreInput(unittest.TestCase):
+    def test_more_input_is_repeatable_and_optional(self):
+        a = bp.parse_args(["--input", "a", "--config", "b", "--bucket", "test-bucket", "--target", "local"])
+        self.assertEqual(a.more_input, [])
+        a = bp.parse_args(["--input", "a", "--more-input", "c", "--more-input", "d", "--config", "b",
+                           "--bucket", "test-bucket", "--target", "local"])
+        self.assertEqual(a.more_input, ["c", "d"])
+
+
 class Hardening(Base):
     """Wave 2 review follow-ups for the publisher."""
 

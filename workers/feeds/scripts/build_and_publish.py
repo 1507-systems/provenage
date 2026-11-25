@@ -425,8 +425,10 @@ def _locked(args, store, work, say) -> int:
     with ledger_f as f:
         f.write(old_raw if old_raw is not None else b"{}\n")
     # -E ignores PYTHON* variables; cwd is the package directory (see run_builder); every path is absolute.
-    cmd = [sys.executable, "-E", "-m", "meeting_ics", "build-set", "--input", os.path.abspath(args.input),
-           "--config", os.path.abspath(args.config), "--ledger", ledger_path, "--out", out_dir]
+    cmd = [sys.executable, "-E", "-m", "meeting_ics", "build-set", "--input", os.path.abspath(args.input)]
+    for extra in getattr(args, "more_input", None) or []:
+        cmd += ["--input", os.path.abspath(extra)]
+    cmd += ["--config", os.path.abspath(args.config), "--ledger", ledger_path, "--out", out_dir]
     if args.adapter:
         cmd += ["--adapter", args.adapter]
     if args.uid_namespace:
@@ -559,6 +561,8 @@ def _public_urls(args, index, say):
 def parse_args(argv):
     ap = argparse.ArgumentParser(prog="build_and_publish.py", description=__doc__.split("\n\n")[0])
     ap.add_argument("--input", required=True, help="records file (JSON, or the adapter's source file)")
+    ap.add_argument("--more-input", action="append", default=[], metavar="FILE",
+                    help="an additional records file (repeatable), e.g. one CSV per jurisdiction; read after --input")
     ap.add_argument("--config", required=True, help="build-set config JSON (uid_domain, jurisdictions, ...)")
     ap.add_argument("--bucket", required=True, help="R2 bucket name")
     ap.add_argument("--target", required=True, choices=["local", "remote"],
@@ -584,7 +588,8 @@ def check_args(a) -> Optional[str]:
         return "--persist-to only applies to --target local"
     if not BUCKET_RE.match(a.bucket):
         return "--bucket %r is not a valid R2 bucket name" % a.bucket
-    for flag, path in (("--input", a.input), ("--config", a.config)):
+    extras = [("--more-input", p) for p in getattr(a, "more_input", [])]
+    for flag, path in [("--input", a.input), ("--config", a.config)] + extras:
         if not os.path.isfile(path):
             return "%s file not found: %s" % (flag, path)
     try:
@@ -599,6 +604,7 @@ def check_args(a) -> Optional[str]:
         if err:
             return err
     a.input, a.config = os.path.abspath(a.input), os.path.abspath(a.config)
+    a.more_input = [os.path.abspath(p) for p in getattr(a, "more_input", [])]
     return None
 
 
