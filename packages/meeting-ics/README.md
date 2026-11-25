@@ -253,7 +253,31 @@ sorted by date, start time and UID, so the output does not depend on input order
 
 `--config` takes the usual build options and must set `uid_domain`; it may also set
 `"jurisdictions": {"demo-town": {"name": "Demo Town"}}`, which gives the feed titles `Demo Town: <body name>` and
-`Demo Town: All meetings` (the slug is used when no name is given). `calendar_name` is not allowed. `--adapter` and
+`Demo Town: All meetings` (the slug is used when no name is given). Use `<place>-<2-letter state>` slugs for real
+places (`longmont-co`); fictional test places use `xx` (`alder-falls-xx`).
+
+Each `jurisdictions.<slug>` entry also takes (all optional, besides the required `name`):
+
+- `short_name`: a single line of at most 40 characters, used by the `/mix/v1/` place prefix and merged calendar names.
+  It defaults to `name`; if `name` is longer than 40 characters and no `short_name` is given, `build-set` exits 2.
+- `status`: `live` (default) or `dev`. `dev` marks test data that carries no permanence promise (see
+  `docs/CALENDAR.md`); anything else is an error.
+
+A top-level `aliases` object records renamed or retired slugs so addresses issued earlier keep working:
+
+    "aliases": {"bodies": {"longmont-co/planning-commission": "longmont-co/planning-and-zoning-commission",
+                           "longmont-co/old-task-force": null},
+                "jurisdictions": {"old-town-co": "new-town-co"}}
+
+A `null` target means retired. `build-set` exits 2 unless every alias source and target is a slug (`<j>/<b>` for
+bodies), a source is not a current feed or jurisdiction (an alias cannot reuse a live slug), a non-null target is in
+this set, and no target is itself a source (no chains). A body alias cannot name the reserved body `all`. Aliases are
+append-only once published: the publisher refuses to drop or change one (`workers/feeds/README.md`), so keep them in
+the config.
+
+The index written by `build-set` carries these as `jurisdictions` and `aliases`, plus a `mix` block of builder limits
+(`docs/CALENDAR.md`). A config without `short_name`, `status` or `aliases` yields the defaults above and byte-identical
+feeds. `calendar_name` is not allowed. `--adapter` and
 `--uid-namespace` work as for `build`. One ledger covers the whole set, so a meeting has the same UID and SEQUENCE in
 its body feed and in `all.ics`; subscribing to both shows each meeting twice. Every built feed is run through
 `check-feed` before anything is written; `out/calendar` must be empty unless you pass `--overwrite`, and the ledger

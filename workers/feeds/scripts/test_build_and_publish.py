@@ -323,6 +323,24 @@ class AliasGuards(Base):
         self.assertEqual(code, 4)
         self.assertIn("gamma.ics disappeared without an alias", err)
 
+    def test_live_to_dev_flip_refused_then_forced(self):
+        # Without this guard, flip (publish 1) then drop bodies (publish 2) both pass with no --force.
+        self.seed_live()
+        self.cfg({"demo-town": {"name": "Demo Town", "status": "dev"}})
+        code, _, err = self.go(self.args(self.recs(["alpha", "beta", "gamma"])))
+        self.assertEqual(code, 4)
+        self.assertIn("refused: jurisdiction demo-town status changed from live to dev (permanence)", err)
+        code, out, _ = self.go(self.args(self.recs(["alpha", "beta", "gamma"]), force=True))
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING (forced): jurisdiction demo-town status changed from live to dev (permanence)", out)
+
+    def test_new_dev_jurisdiction_and_dev_rerun_not_a_flip(self):
+        self.cfg({"demo-town": {"name": "Demo Town", "status": "dev"}})
+        self.assertEqual(self.go(self.args(self.recs(["alpha"])))[0], 0)
+        self.cfg({"demo-town": {"name": "Demo Town", "status": "dev"}, "other": {"name": "Other", "status": "dev"}})
+        recs = self.recs(["alpha"]) + self.recs(["x"], j="other")
+        self.assertEqual(self.go(self.args(recs))[0], 0)
+
     def test_removing_an_alias_refused(self):
         self.seed_live()
         self.cfg(aliases={"bodies": {"demo-town/old": "demo-town/beta"}})
