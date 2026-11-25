@@ -1,0 +1,243 @@
+{
+ "comment": "Shared grammar vectors for /mix/v1/. selection is the text between /mix/v1/ and .ics. valid=true means the selection is canonical and acceptable; otherwise canonical_selection, when not null, is the fixed form the 404 names. The 1537-byte limit is tested in code (too large for a readable vector).",
+ "vectors": [
+  {
+   "name": "single body",
+   "selection": "longmont-co.city-council",
+   "valid": true,
+   "canonical_selection": "longmont-co.city-council"
+  },
+  {
+   "name": "two bodies sorted",
+   "selection": "longmont-co.city-council.planning-and-zoning-commission",
+   "valid": true,
+   "canonical_selection": "longmont-co.city-council.planning-and-zoning-commission"
+  },
+  {
+   "name": "all alone",
+   "selection": "longmont-co.all",
+   "valid": true,
+   "canonical_selection": "longmont-co.all"
+  },
+  {
+   "name": "two jurisdictions sorted",
+   "selection": "boulder-county-co.all_longmont-co.city-council",
+   "valid": true,
+   "canonical_selection": "boulder-county-co.all_longmont-co.city-council"
+  },
+  {
+   "name": "digits and hyphens",
+   "selection": "a1-b2.c3-d4",
+   "valid": true,
+   "canonical_selection": "a1-b2.c3-d4"
+  },
+  {
+   "name": "64 char slug",
+   "selection": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.b",
+   "valid": true,
+   "canonical_selection": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.b"
+  },
+  {
+   "name": "bodies out of order",
+   "selection": "longmont-co.planning-and-zoning-commission.city-council",
+   "valid": false,
+   "canonical_selection": "longmont-co.city-council.planning-and-zoning-commission",
+   "error_contains": "canonical"
+  },
+  {
+   "name": "groups out of order",
+   "selection": "longmont-co.city-council_boulder-county-co.all",
+   "valid": false,
+   "canonical_selection": "boulder-county-co.all_longmont-co.city-council",
+   "error_contains": "canonical"
+  },
+  {
+   "name": "repeated body",
+   "selection": "longmont-co.city-council.city-council",
+   "valid": false,
+   "canonical_selection": "longmont-co.city-council",
+   "error_contains": "canonical"
+  },
+  {
+   "name": "repeated jurisdiction merges",
+   "selection": "longmont-co.parks_longmont-co.city-council",
+   "valid": false,
+   "canonical_selection": "longmont-co.city-council.parks",
+   "error_contains": "canonical"
+  },
+  {
+   "name": "repeated all merges",
+   "selection": "longmont-co.all_longmont-co.all",
+   "valid": false,
+   "canonical_selection": "longmont-co.all",
+   "error_contains": "canonical"
+  },
+  {
+   "name": "all not alone",
+   "selection": "longmont-co.all.city-council",
+   "valid": false,
+   "canonical_selection": null,
+   "error_contains": "all"
+  },
+  {
+   "name": "all not alone, other order",
+   "selection": "longmont-co.city-council.all",
+   "valid": false,
+   "canonical_selection": null,
+   "error_contains": "all"
+  },
+  {
+   "name": "same jurisdiction all and body",
+   "selection": "longmont-co.all_longmont-co.city-council",
+   "valid": false,
+   "canonical_selection": null,
+   "error_contains": "once"
+  },
+  {
+   "name": "uppercase",
+   "selection": "Longmont-co.city-council",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "uppercase body",
+   "selection": "longmont-co.City-Council",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "percent-encoded dot",
+   "selection": "longmont-co%2Ecity-council",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "percent-encoded letter",
+   "selection": "longmont-co.city%2dcouncil",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "empty selection",
+   "selection": "",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "empty body segment",
+   "selection": "longmont-co..city-council",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "empty jurisdiction",
+   "selection": "._city-council",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "leading dot",
+   "selection": ".longmont-co.city-council",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "trailing dot",
+   "selection": "longmont-co.city-council.",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "empty group (leading underscore)",
+   "selection": "_longmont-co.city-council",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "empty group (trailing underscore)",
+   "selection": "longmont-co.city-council_",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "empty group (double underscore)",
+   "selection": "a.b__c.d",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "group without member",
+   "selection": "longmont-co",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "slash",
+   "selection": "longmont-co/city-council.x",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "double hyphen",
+   "selection": "longmont--co.city-council",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "leading hyphen",
+   "selection": "-longmont.city-council",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "trailing hyphen",
+   "selection": "longmont.city-council-",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "slug of 65 characters",
+   "selection": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.b",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "non-ASCII letter",
+   "selection": "longmont-co.caf\u00e9",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "space",
+   "selection": "longmont-co.city council",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "underscore inside a slug",
+   "selection": "longmont-co.city_council",
+   "valid": false,
+   "canonical_selection": null
+  },
+  {
+   "name": "32 refs",
+   "selection": "j.b01.b02.b03.b04.b05.b06.b07.b08.b09.b10.b11.b12.b13.b14.b15.b16.b17.b18.b19.b20.b21.b22.b23.b24.b25.b26.b27.b28.b29.b30.b31.b32",
+   "valid": true,
+   "canonical_selection": "j.b01.b02.b03.b04.b05.b06.b07.b08.b09.b10.b11.b12.b13.b14.b15.b16.b17.b18.b19.b20.b21.b22.b23.b24.b25.b26.b27.b28.b29.b30.b31.b32"
+  },
+  {
+   "name": "33 refs",
+   "selection": "j.b01.b02.b03.b04.b05.b06.b07.b08.b09.b10.b11.b12.b13.b14.b15.b16.b17.b18.b19.b20.b21.b22.b23.b24.b25.b26.b27.b28.b29.b30.b31.b32.b33",
+   "valid": false,
+   "canonical_selection": null,
+   "error_contains": "too many"
+  },
+  {
+   "name": "33 refs across groups",
+   "selection": "j01.all_j02.all_j03.all_j04.all_j05.all_j06.all_j07.all_j08.all_j09.all_j10.all_j11.all_j12.all_j13.all_j14.all_j15.all_j16.all_j17.all_j18.all_j19.all_j20.all_j21.all_j22.all_j23.all_j24.all_j25.all_j26.all_j27.all_j28.all_j29.all_j30.all_j31.all_j32.all_j33.all",
+   "valid": false,
+   "canonical_selection": null,
+   "error_contains": "too many"
+  }
+ ]
+}
