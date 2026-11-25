@@ -155,6 +155,56 @@ test('over the size limit: no address is issued and the page says why', async ({
   await expect(page.locator('#address')).toHaveValue('');
   await expect(page.locator('#copy')).toBeDisabled();
   await expect(page.getByText(/more than one address can carry/)).toBeVisible();
+  await expect(page.locator('#result-hint')).not.toContainText('Choose at least one');
+});
+
+/** 30+ places, each with one long-slug body: ~59 bytes per ref, so 30 refs exceed 1,536 bytes. */
+function longSlugs(count) {
+  const doc = structuredClone(fixture);
+  for (let i = 1; i <= count; i++) {
+    const j = `town-of-somewhere-long-${String(i).padStart(2, '0')}-co`;
+    const b = 'planning-and-zoning-commission';
+    doc.feeds.push({ body: b, body_name: `Zoning ${i}`, cancelled: 0, events: 1, href: `x/${b}.ics`, jurisdiction: j, key: `calendar/${j}/${b}.ics`, kind: 'body', sha256: '0'.repeat(64), size: 10, title: 'x' });
+    doc.jurisdictions[j] = { name: `Town ${String(i).padStart(2, '0')}`, short_name: 'T', status: 'live' };
+  }
+  return doc;
+}
+const longHash = (n) =>
+  '#v1=' + Array.from({ length: n }, (_, i) => `town-of-somewhere-long-${String(i + 1).padStart(2, '0')}-co.planning-and-zoning-commission`).join('_');
+
+test('byte limit: long-slug boxes disable at 1,536 bytes and the page says why', async ({ page }) => {
+  await open(page, '', longSlugs(32));
+  await page.locator('details.group').evaluateAll((ds) => ds.forEach((d) => (d.open = true)));
+  // Tick through the DOM: with 32 open groups the sticky result panel hides boxes from real clicks.
+  await page.evaluate(() => {
+    for (let i = 1; i <= 26; i++) {
+      const cb = [...document.querySelectorAll('label.opt')].find((l) => l.textContent.startsWith(`Zoning ${i} (`)).querySelector('input');
+      cb.click();
+    }
+  });
+  await expect(page.getByLabel(/^Zoning 27 \(/)).toBeDisabled();
+  await expect(page.getByText('This address is at its length limit. Make a second one for more.')).toBeVisible();
+  const addr = await page.locator('#address').inputValue();
+  expect(addr).toContain('/mix/v1/');
+  await expect(page.locator('#copy')).toBeEnabled();
+  await expect(page.locator('#result-hint')).not.toContainText('Choose at least one');
+  expect(new URL(page.url()).hash.length).toBeLessThanOrEqual(1536 + 4);
+  await page.getByLabel(/^Zoning 1 \(/).uncheck();
+  await expect(page.getByLabel(/^Zoning 27 \(/)).toBeEnabled();
+});
+
+test('fragment over 1,536 bytes ticks only up to the limit, lists the rest, issues a valid address', async ({ page }) => {
+  await open(page, longHash(30), longSlugs(30));
+  const ticked = await page.locator('details.group input[type=checkbox]:checked').count();
+  expect(ticked).toBeGreaterThan(0);
+  expect(ticked).toBeLessThan(30);
+  await expect(page.locator('#restore li')).toHaveCount(30 - ticked);
+  await expect(page.locator('#restore')).toContainText('(over the address length limit)');
+  const addr = await page.locator('#address').inputValue();
+  expect(addr).toContain('/mix/v1/');
+  const selection = addr.split('/mix/v1/')[1].replace(/\.ics$/, '');
+  expect(selection.length).toBeLessThanOrEqual(1536);
+  expect(new URL(page.url()).hash).toBe(`#v1=${selection}`);
 });
 
 test('filter is case- and diacritic-insensitive and announces a count', async ({ page }) => {

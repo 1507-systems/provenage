@@ -4,7 +4,7 @@
 //  * Every string that came from the index reaches the page through textContent or setAttribute on elements
 //    made with createElement. No HTML-parsing APIs are used anywhere.
 //  * Links are built only from slugs that pass SLUG_RE, never from the index "href" field.
-import { MAX_REFS, isSlug, parseSelection, buildSelection } from './canon.js';
+import { MAX_REFS, MAX_SELECTION_BYTES, isSlug, parseSelection, buildSelection } from './canon.js';
 
 const DEFAULT_BASE = 'https://api.1507.systems/provenage';
 const INDEX_SCHEMA = 'provenage-calendar-index/1';
@@ -41,7 +41,7 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const clip = (s, n = 80) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
 // ---------- state ----------
-/** @type {{max:number, maxBytes:number, jurisdictions:Map<string,object>, aliasB:Map, aliasJ:Map}|null} */
+/** @type {{max:number, maxSelBytes:number, maxBytes:number, jurisdictions:Map<string,object>, aliasB:Map, aliasJ:Map}|null} */
 let model = null;
 /** jurisdiction slug -> {all:boolean, bodies:Set<string>} */
 const sel = new Map();
@@ -68,6 +68,7 @@ function buildModel(doc) {
   const num = (v, d) => (Number.isFinite(v) && v > 0 ? v : d);
   const m = {
     max: Math.min(num(doc.mix.max_refs, MAX_REFS), MAX_REFS),
+    maxSelBytes: Math.min(num(doc.mix.max_selection_bytes, MAX_SELECTION_BYTES), MAX_SELECTION_BYTES),
     maxBytes: num(doc.mix.issue_max_bytes, 2000000),
     jurisdictions: new Map(),
     aliasB: aliasMap(isObj(doc.aliases) ? doc.aliases.bodies : null),
@@ -135,6 +136,30 @@ function selectedBytes() {
   }
   return total;
 }
+
+const byteLength = (text) => new TextEncoder().encode(text).length;
+
+/**
+ * Length in bytes of the selection that would result from changing one box (body === 'all' for the All box).
+ * Works on a copy; the real selection is not touched.
+ */
+function lengthIfChanged(slug, body, on) {
+  const copy = new Map(sel);
+  const cur = sel.get(slug);
+  if (body === 'all') {
+    if (on) copy.set(slug, { all: true, bodies: new Set() });
+    else copy.delete(slug);
+  } else {
+    const bodies = new Set(cur && !cur.all ? cur.bodies : []);
+    if (on) bodies.add(body);
+    else bodies.delete(body);
+    copy.set(slug, { all: false, bodies });
+  }
+  return byteLength(buildSelection(copy));
+}
+
+/** True when ticking this box would push the selection past the address length limit. */
+const wouldBeTooLong = (slug, body) => lengthIfChanged(slug, body, true) > model.maxSelBytes;
 
 function setAll(slug, on) {
   if (on) sel.set(slug, { all: true, bodies: new Set() });
@@ -233,6 +258,7 @@ function sync() {
   const refs = refCount();
   const atCap = refs >= model.max;
   const over = selectedBytes() > model.maxBytes;
+  let lengthCapped = false;
 
   for (const [slug, j] of model.jurisdictions) {
     const g = groupEls.get(slug);
@@ -241,14 +267,19 @@ function sync() {
     const allBox = boxes.get(slug);
     if (allBox) {
       allBox.checked = allOn;
-      allBox.disabled = !allOn && atCap && !(v && v.bodies.size > 0);
+      const refBlocked = atCap && !(v && v.bodies.size > 0);
+      const lenBlocked = !allOn && wouldBeTooLong(slug, 'all');
+      allBox.disabled = !allOn && (refBlocked || lenBlocked);
+      if (!allOn && lenBlocked && !refBlocked) lengthCapped = true;
     }
     g.included.hidden = !allOn;
     for (const b of j.bodies.keys()) {
       const cb = boxes.get(`${slug}/${b}`);
       const on = !allOn && !!v?.bodies.has(b);
       cb.checked = on;
-      cb.disabled = allOn || (!on && atCap);
+      const lenBlocked = !allOn && !on && wouldBeTooLong(slug, b);
+      cb.disabled = allOn || (!on && (atCap || lenBlocked));
+      if (lenBlocked && !atCap) lengthCapped = true;
     }
     const n = v ? (v.all ? 1 : v.bodies.size) : 0;
     g.selCount.hidden = n === 0;
@@ -256,8 +287,12 @@ function sync() {
   }
 
   const capNote = $('cap-note');
-  capNote.hidden = !atCap;
-  capNote.textContent = atCap ? `Up to ${model.max} calendars in one address. Make a second one for more.` : '';
+  capNote.hidden = !(atCap || lengthCapped);
+  capNote.textContent = atCap
+    ? `Up to ${model.max} calendars in one address. Make a second one for more.`
+    : lengthCapped
+      ? 'This address is at its length limit. Make a second one for more.'
+      : '';
 
   renderResult(refs, over);
   mirrorToFragment();
@@ -280,9 +315,11 @@ function renderResult(refs, over) {
   const address = issued ? addressFor(selection) : '';
 
   $('address').value = address;
-  $('result-hint').textContent = issued
-    ? `${plural(refs, 'calendar', 'calendars')} in one address.`
-    : 'Choose at least one calendar above to get an address.';
+  let hint = 'Choose at least one calendar above to get an address.';
+  if (issued) hint = `${plural(refs, 'calendar', 'calendars')} in one address.`;
+  else if (over) hint = 'No address is issued for this choice. See the note below.';
+  else if (selection) hint = 'No address is issued for this choice: it is too long for one address. Untick a few calendars.';
+  $('result-hint').textContent = hint;
 
   const https = address;
   const webcal = issued ? webcalOf(address) : '';
@@ -433,6 +470,10 @@ function applySelectionText(text) {
       const adds = body === 'all' ? (cur?.all ? 0 : 1 - (cur?.bodies.size ?? 0)) : cur?.all || cur?.bodies.has(body) ? 0 : 1;
       if (adds > 0 && refCount() + adds > model.max) {
         problems.push(`${label} (over the ${model.max} calendar limit)`);
+        continue;
+      }
+      if (lengthIfChanged(jSlug, body, true) > model.maxSelBytes) {
+        problems.push(`${label} (over the address length limit)`);
         continue;
       }
       if (body === 'all') setAll(jSlug, true);
