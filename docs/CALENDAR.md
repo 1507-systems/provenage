@@ -196,7 +196,7 @@ needs: an alias, once recorded, is never removed or changed, and a feed in a non
 from the index unless an alias covers it.
 
 Exemption: a jurisdiction with `status: "dev"` (test data, such as a slug kept only for demonstration) carries no
-promise. Its feeds may be removed or replaced with different data, and the builder page labels them "Test data". Do not rely on an address that names one. Fictional `xx` places are test data for the same reason.
+promise. Its feeds may be removed or replaced with different data by the publisher (removing a whole one needs a confirmed `--force` run), and the builder page labels them "Test data". Do not rely on an address that names one. Fictional `xx` places are test data for the same reason.
 
 ### Privacy
 
