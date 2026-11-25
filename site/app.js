@@ -99,6 +99,10 @@ function buildModel(doc) {
     }
   }
   for (const [slug, j] of [...m.jurisdictions]) if (!j.all && j.bodies.size === 0) m.jurisdictions.delete(slug);
+  // Two places can share a display name (a demo copy and the real slug); keep them tellable apart.
+  const seen = new Map();
+  for (const j of m.jurisdictions.values()) seen.set(j.name, (seen.get(j.name) ?? 0) + 1);
+  for (const j of m.jurisdictions.values()) if (seen.get(j.name) > 1) j.name = `${j.name} (${j.slug})`;
   return { model: m };
 }
 
@@ -498,15 +502,20 @@ function applySelectionText(text) {
 function restoreFromFragment() {
   const m = FRAG_RE.exec(location.hash);
   if (m && m[1]) applySelectionText(m[1]);
+  else if (/^#v1=./.test(location.hash)) showNotAddress();
+}
+
+function showNotAddress() {
+  const box = $('restore');
+  box.replaceChildren(el('p', {}, 'That does not look like an address made by this page. It should contain /mix/v1/ and end in .ics.'));
+  box.hidden = false;
 }
 
 function pasteAddress() {
   const raw = $('paste').value.trim();
   const m = /\/mix\/v1\/([a-z0-9._-]+)\.ics(?:[?#].*)?$/.exec(raw);
   if (!m) {
-    const box = $('restore');
-    box.replaceChildren(el('p', {}, 'That does not look like an address made by this page. It should contain /mix/v1/ and end in .ics.'));
-    box.hidden = false;
+    showNotAddress();
     return;
   }
   applySelectionText(m[1]);

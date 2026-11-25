@@ -57,6 +57,11 @@ jobs:
         working-directory: workers/feeds
         run: npm ci
 
+      - name: Test (page, Node-only unit tests)
+        # No dependencies needed: node --test only. The browser tests run in the separate "site" job.
+        working-directory: site
+        run: node --test test/unit/*.test.mjs
+
       - name: Typecheck (Worker)
         working-directory: workers/feeds
         run: npx tsc --noEmit

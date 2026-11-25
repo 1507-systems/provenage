@@ -40,6 +40,8 @@ a { color: var(--accent); }
 .box, .note { border: 1px solid var(--line); border-radius: 6px; padding: .75rem; background: var(--soft); margin: .75rem 0; }
 .note { background: var(--warn-bg); }
 .error { background: var(--err-bg); }
+.notice { border: 2px solid var(--line); border-radius: 6px; padding: .75rem; background: var(--warn-bg); color: var(--fg); margin: 0 0 1rem; }
+.notice p { margin: 0; }
 [hidden] { display: none !important; }
 
 label { display: block; font-weight: 600; margin: .5rem 0 .25rem; }
@@ -81,8 +83,10 @@ footer { margin-top: 2rem; color: var(--muted); font-size: .9rem; }
   .result {
     position: sticky; bottom: 0; margin: 0 -16px; padding: .5rem 16px;
     background: var(--bg); border-top: 2px solid var(--line);
-    max-height: 60vh; overflow-y: auto;
+    max-height: 40vh; overflow-y: auto;
   }
+  /* Keep a focused control clear of the sticky result panel (WCAG 2.2 SC 2.4.11). */
+  html { scroll-padding-bottom: calc(40vh + 1rem); }
   .result h2 { margin-top: .25rem; font-size: 1.05rem; }
 }
 @media (prefers-reduced-motion: no-preference) {

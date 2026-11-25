@@ -175,14 +175,9 @@ const longHash = (n) =>
 test('byte limit: long-slug boxes disable at 1,536 bytes and the page says why', async ({ page }) => {
   await open(page, '', longSlugs(32));
   await page.locator('details.group').evaluateAll((ds) => ds.forEach((d) => (d.open = true)));
-  // Tick through the DOM: with 32 open groups the sticky result panel hides boxes from real clicks.
-  await page.evaluate(() => {
-    for (let i = 1; i <= 26; i++) {
-      const cb = [...document.querySelectorAll('label.opt')].find((l) => l.textContent.startsWith(`Zoning ${i} (`)).querySelector('input');
-      cb.click();
-    }
-  });
-  await expect(page.getByLabel(/^Zoning 27 \(/)).toBeDisabled();
+  // Real clicks (the viewport is wide, so the sticky result panel is off).
+  for (let i = 1; i <= 25; i++) await page.getByLabel(new RegExp(`^Zoning ${i} \\(`)).check();
+  await expect(page.getByLabel(/^Zoning 26 \(/)).toBeDisabled();
   await expect(page.getByText('This address is at its length limit. Make a second one for more.')).toBeVisible();
   const addr = await page.locator('#address').inputValue();
   expect(addr).toContain('/mix/v1/');
@@ -190,7 +185,7 @@ test('byte limit: long-slug boxes disable at 1,536 bytes and the page says why',
   await expect(page.locator('#result-hint')).not.toContainText('Choose at least one');
   expect(new URL(page.url()).hash.length).toBeLessThanOrEqual(1536 + 4);
   await page.getByLabel(/^Zoning 1 \(/).uncheck();
-  await expect(page.getByLabel(/^Zoning 27 \(/)).toBeEnabled();
+  await expect(page.getByLabel(/^Zoning 26 \(/)).toBeEnabled();
 });
 
 test('fragment over 1,536 bytes ticks only up to the limit, lists the rest, issues a valid address', async ({ page }) => {
@@ -394,4 +389,90 @@ test('test override of the API base works (own origin, loosened CSP copy)', asyn
   await expect(page.locator('#picker')).toBeVisible();
   await page.getByLabel('City Council (2 meetings)').check();
   await expect(page.locator('#address')).toHaveValue('http://127.0.0.1:4173/fake-api/mix/v1/alpha-town.city-council.ics');
+});
+
+test('notice banner is visible, plain text, and readable at 320 px in light and dark', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  for (const scheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await open(page);
+    const n = page.locator('.notice');
+    await expect(n).toBeVisible();
+    await expect(n).toContainText('Early preview. The only real meetings here so far are an unofficial sample for Longmont, Colorado. Places in state XX are made-up test data for trying the builder.');
+    expect(await n.locator('button, a, input').count()).toBe(0);
+    await expectNoOverflow(page);
+    expect((await axe(page)).violations).toEqual([]);
+  }
+});
+
+test('a #v1= fragment that fails the pattern shows the not-an-address note', async ({ page }) => {
+  await open(page, '#v1=Not%20An%20Address!');
+  await expect(page.locator('#restore')).toContainText('does not look like an address made by this page');
+});
+
+test('320x640: the sticky result panel never covers a focused control (SC 2.4.11)', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await open(page, '#v1=alpha-town.all');
+  await expect(page.locator('#address')).not.toHaveValue('');
+  await page.locator('details.group').evaluateAll((ds) => ds.forEach((d) => (d.open = true)));
+  await page.locator('#filter').focus();
+  const total = await page.evaluate(() => document.querySelectorAll('#picker input, #picker summary, #picker button').length);
+  expect(total).toBeGreaterThan(8);
+  const bad = [];
+  for (let i = 0; i < total + 2; i++) {
+    const r = await page.evaluate(() => {
+      const a = document.activeElement;
+      if (!a || !a.closest('#picker')) return { skip: true };
+      const b = a.getBoundingClientRect();
+      const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      return { skip: false, covered: !!hit && !!hit.closest('#result'), what: a.outerHTML.slice(0, 70) };
+    });
+    if (!r.skip && r.covered) bad.push(r.what);
+    await page.keyboard.press('Tab');
+  }
+  expect(bad).toEqual([]);
+});
+
+/** 14 places (demo-town, longmont-co and 12 synthetic -xx places) with about 80 bodies. */
+function fourteenPlaces() {
+  const doc = { schema: fixture.schema, mix: structuredClone(fixture.mix), aliases: { bodies: {}, jurisdictions: {} }, jurisdictions: {}, feeds: [] };
+  const bodyNames = ['City Council', 'Planning Commission', 'Library Board', 'Parks Board', 'Water Board', 'Board of Adjustment'];
+  const add = (slug, name, status, n) => {
+    doc.jurisdictions[slug] = { name, short_name: name, status };
+    doc.feeds.push({ body: 'all', body_name: null, cancelled: 0, events: 9, href: `${slug}/all.ics`, jurisdiction: slug, key: `calendar/${slug}/all.ics`, kind: 'combined', sha256: '0'.repeat(64), size: 100, title: name });
+    for (let i = 0; i < n; i++) {
+      const b = bodyNames[i].toLowerCase().replaceAll(' ', '-');
+      doc.feeds.push({ body: b, body_name: bodyNames[i], cancelled: 0, events: 3, href: `${slug}/${b}.ics`, jurisdiction: slug, key: `calendar/${slug}/${b}.ics`, kind: 'body', sha256: '0'.repeat(64), size: 100, title: 'x' });
+    }
+  };
+  add('demo-town', 'City of Longmont', 'dev', 6);
+  add('longmont-co', 'City of Longmont', 'live', 6);
+  const xx = ['alder-falls', 'brask-harbor', 'fennick-landing', 'marrowby-county', 'ostrel-bend', 'pelman-cross', 'quillhaven', 'ridgemoor-heights', 'sorrel-glen', 'thistledown-vale', 'tolliver-county', 'wexmoor'];
+  xx.forEach((p, i) => {
+    const title = p.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+    add(`${p}-xx`, `${title}, XX (SYNTHETIC TEST DATA, not a real place)`, 'dev', 4 + (i % 3));
+  });
+  return doc;
+}
+
+test('14 places, about 80 bodies: groups are labelled apart and filtering is usable', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await open(page, '', fourteenPlaces());
+  await expect(page.locator('details.group')).toHaveCount(14);
+  const names = await page.locator('details.group > summary').allTextContents();
+  expect(new Set(names).size).toBe(14);
+  expect(names.filter((n) => n.includes('Longmont'))).toHaveLength(2);
+  expect(names.filter((n) => n.includes('longmont-co') || n.includes('demo-town'))).toHaveLength(2);
+  await expectNoOverflow(page);
+  await page.getByLabel('Filter places and boards').fill('longmont');
+  await expect(page.locator('details.group:not([hidden])')).toHaveCount(2);
+  await page.getByLabel('Filter places and boards').fill('marrowby');
+  await expect(page.locator('details.group:not([hidden])')).toHaveCount(1);
+  await page.getByLabel('Filter places and boards').fill('water board');
+  const n = await page.locator('details.group:not([hidden])').count();
+  expect(n).toBeGreaterThan(3);
+  expect(n).toBeLessThan(14);
+  await page.getByLabel('Filter places and boards').fill('');
+  await expect(page.locator('details.group:not([hidden])')).toHaveCount(14);
+  expect((await axe(page)).violations).toEqual([]);
 });
