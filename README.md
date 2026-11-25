@@ -48,6 +48,14 @@ Subscribe with `webcal://` in place of `https://`. Example (not yet live):
 
     webcal://api.1507.systems/provenage/calendar/longmont-co/city-council.ics
 
+### Pick several calendars: the builder (early preview)
+
+A static page at https://1507-systems.github.io/provenage/ (source in `site/`) lets you tick the meetings you want
+and gives you one subscribable address for all of them (`/mix/v1/...`). It is an early preview: the only real
+meetings so far are an unofficial sample for Longmont, Colorado, and places in the fictional state XX are synthetic
+test data for trying the builder. The address rules, what they promise and what they do not are in
+[docs/CALENDAR.md](docs/CALENDAR.md#combined-addresses-mixv1).
+
 The host is a shared public API host operated by the maintainer. Cloudflare
 Workers and R2 are the initial deployment target, not an architectural dependency.
 See [docs/CALENDAR.md](docs/CALENDAR.md).
@@ -55,7 +63,8 @@ See [docs/CALENDAR.md](docs/CALENDAR.md).
 ## Repository layout
 
 - `packages/meeting-ics/` - the standalone calendar builder (Python, stdlib only).
-- `workers/feeds/` - the Cloudflare Worker that serves feeds.
+- `workers/feeds/` - the Cloudflare Worker that serves feeds and combined addresses.
+- `site/` - the builder page (static; no build step).
 - `adapters/` - the adapter contract and access/legal gate (no source adapters yet).
 - `docs/` - architecture, calendar rules, data model, naming, prior art.
 

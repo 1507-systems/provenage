@@ -6,15 +6,19 @@ A tiny Cloudflare Worker that serves subscribable iCalendar (`.ics`) feeds, plus
 
 ## URL scheme (relative to the router mount `/provenage/`)
 
-- `/calendar/<jurisdiction>/<body>.ics` : the feed (`text/calendar; charset=utf-8`)
-- `/calendar/<jurisdiction>/all.ics` : the combined feed of a jurisdiction (same path shape)
-- `/calendar/<jurisdiction>/<body>.json` : optional sidecar metadata (the set publisher does not write these)
-- `/calendar/index.json` : list of available feeds (from an index object in R2)
-- anything else : 404 JSON
+| Route (Worker path) | Methods | Notes |
+|---|---|---|
+| `/calendar/index.json` | GET, HEAD | The feed index, from an index object in R2. The only route with `Access-Control-Allow-Origin: *` (200, 304, HEAD). |
+| `/calendar/<jurisdiction>/<body>.ics` | GET, HEAD | One body's feed (`text/calendar; charset=utf-8`). No CORS. |
+| `/calendar/<jurisdiction>/all.ics` | GET, HEAD | The combined feed of a jurisdiction (same path shape). |
+| `/calendar/<jurisdiction>/<body>.json` | GET, HEAD | Optional sidecar metadata (the set publisher does not write these). |
+| `/mix/v1/<selection>.ics` | GET, HEAD | One calendar merged from several feeds. Matched before the feed route; any path starting `/mix/` goes to it. Grammar, limits and merge rules: `docs/CALENDAR.md`. No CORS. |
+| anything else | any | 404 JSON; other methods 405 with `Allow: GET, HEAD`; `OPTIONS` stays 405. |
 
 Example: `https://api.1507.systems/provenage/calendar/longmont-co/city-council.ics` (or `webcal://`).
+Jurisdiction slugs are `<place>-<2-letter state>` (`longmont-co`); see `docs/CALENDAR.md`.
 
-Responses carry ETag, Last-Modified, `Cache-Control: public, max-age=300`, `X-Content-Type-Options: nosniff`; `If-None-Match` yields 304. Bucket names are never exposed. The slug is not in the handler code; only the router config and the publish script know it.
+Feed and index responses carry ETag, Last-Modified, `Cache-Control: public, max-age=300`, `X-Content-Type-Options: nosniff`; `If-None-Match` yields 304. `/mix/v1/` responses (200, 304, 404, 503) are described in `docs/CALENDAR.md`; its 404 and 503 bodies are JSON with `Cache-Control: no-store`, and a 503 carries `Retry-After` (300, or 60 when a source feed fails its `sha256` check). Bucket names are never exposed. The slug is not in the handler code; only the router config and the publish script know it.
 
 ## Refresh semantics
 
@@ -68,7 +72,7 @@ The ledger must stay under `state/`. Never put it under `calendar/`: `calendar/<
 2. Reads `calendar/index.json` and `state/ledger.json`. A failed read is never treated as an empty ledger. A missing ledger next to an existing index is refused (exit 5) unless you pass `--init-ledger`, which resets every SEQUENCE. **The first publish to a remote bucket needs `--init-ledger`** (with `--target remote` a missing ledger is always refused without it), because a "missing" read over the network is not proof that the bucket is new. Use it only for a bucket you know is new, and not again afterwards. The key is treated as missing only when wrangler's output positively says the key does not exist (`NoSuchKey`, code 10007, or the message "The specified key does not exist"); any other failure, including a missing bucket or an authentication error, is a storage error (exit 6). If a real not-found is reported as exit 6, check the wrangler output printed with the error.
 3. Builds into a work directory (the builder runs offline, from the package directory with absolute paths, `python -E`, and only an allowlisted environment: no `CLOUDFLARE_*` or other token-like variable reaches it; only wrangler gets your environment). Every built feed must match its index sha256.
 4. Checks the new ledger against the old one: no UID removed, no SEQUENCE lowered (exit 5).
-5. Shrink guard: refuses (exit 4) a set with 0 events, a drop of more than 50% of all events, a drop of more than 50% in one jurisdiction, a disappeared jurisdiction, or a previous index it cannot read. `--force` prints each reason as `WARNING (forced)` and continues.
+5. Shrink guard: refuses (exit 4) a set with 0 events, a drop of more than 50% of all events, a drop of more than 50% in one jurisdiction, a disappeared jurisdiction, a previous index it cannot read, and two permanence reasons that protect issued `/mix/v1/` addresses (below). `--force` prints each reason as `WARNING (forced)` and continues.
 
    **Recovery after an unreadable previous index:** if the stored `calendar/index.json` is corrupt, truncated or a different schema (for example after a failed readback left a bad object in the bucket), every run exits 4 with `previous calendar/index.json is unreadable`. That is the one case where `--force` is the recovery step: run `--dry-run` first, confirm the plan looks right (the new set has the events you expect), then run once with `--force`. The new index overwrites the bad one. Do not use `--force` for a real shrink (the other refusal reasons) until you have confirmed the drop is intended, and never as a default; it disables the guard that protects subscribers from a bad input file.
 6. Prints the plan (`plan: PUT|SKIP|ORPHAN ...`; the format is stable for log parsing). `--dry-run` stops here, after every check, and writes nothing.
@@ -77,7 +81,20 @@ The ledger must stay under `state/`. Never put it under `calendar/`: `calendar/<
 
 The ledger goes first so a published SEQUENCE is never ahead of the stored ledger. If a run dies partway (exit 6, `publish incomplete`), run it again: it rebuilds byte-identical feeds from the stored ledger and uploads the rest. The index goes last, so it never lists an object that is not there.
 
-A feed whose body leaves the input stays in the bucket and stays servable. The run reports it as `ORPHAN` and leaves it. There is no pruning in M1.
+**Permanence guards (exit 4).** Compared with the previous index, and only when that index is readable:
+
+- `alias <body|jurisdiction> <slug> was removed (aliases are append-only)` and `... was changed from <old> to <new> (aliases are append-only)`: every alias in the previous index must be present and unchanged in the new one. Adding aliases is always allowed.
+- `feed calendar/<j>/<b>.ics disappeared without an alias`: every feed key in the previous index must still be in the new one, or be covered by an alias the way the Worker resolves it (a body alias, or a jurisdiction alias that is `null` or whose target feed exists in the new index). A feed in a jurisdiction the **previous** index marks `status: "dev"` is exempt, so a test slug can be reverted or dropped; the new index cannot grant itself that exemption.
+
+**Resolving exit 4 for a renamed or removed body: add an alias, not `--force`.** Suppose `longmont-co/planning-commission` is renamed `planning-and-zoning-commission` in the source data. Put the old slug in the set config, then dry-run and publish:
+
+```
+"aliases": {"bodies": {"longmont-co/planning-commission": "longmont-co/planning-and-zoning-commission"}}
+```
+
+Use `null` as the target to retire a body (`"longmont-co/old-task-force": null`) and `"jurisdictions": {"old-slug": "new-slug"}` for a whole jurisdiction. The builder (`build-set`, exit 2) checks that an alias source is not a current feed or jurisdiction, that a non-null target is in the set, and that a target is not itself an alias source (no chains). Aliases are permanent: keep them in the config forever. `--force` is not the fix: it would let the old slug vanish unredirected, and an address issued with it would silently lose that calendar. Use it only for a change you have confirmed is intended and no address could depend on.
+
+**Orphans.** A feed that is in the previous index but not the new one stays in the bucket and stays servable at its direct `/calendar/<j>/<b>.ics` address, frozen at its last content. The run reports it as `plan: ORPHAN <key> (in previous index, not in new; left in place)` once, on the run that drops it from the index. Because the new index no longer lists it, `/mix/v1/` does not use it: an issued mix address reaches the renamed feed through its alias, and counts a retired (`null`) or unaliased vanished feed as missing (`X-Provenage-Missing`). Aliases do not rewrite direct feed addresses. There is no pruning.
 
 ### Exit codes
 
@@ -87,7 +104,7 @@ A feed whose body leaves the input stays in the bucket and stays servable. The r
 | 1 | build failed, or a built file does not match its index sha256 |
 | 2 | usage or config error, including a work directory or lock file that cannot be used safely |
 | 3 | lock held |
-| 4 | shrink guard refused |
+| 4 | publisher guard refused (shrink, alias removed or changed, feed disappeared without an alias) |
 | 5 | ledger integrity refused |
 | 6 | storage or file-system error (wrangler failure, readback mismatch, disk or permission problem while running) |
 | 7 | unexpected internal error (a bug or unexpected builder output; never reported as exit 1) |
@@ -112,3 +129,4 @@ A feed whose body leaves the input stays in the bucket and stays servable. The r
 - `GET/HEAD /calendar/index.json` is the only route with `Access-Control-Allow-Origin: *` (200, 304 and HEAD). Feeds and error responses carry no CORS header; `OPTIONS` stays 405.
 - The index is held in memory per isolate, rechecked against R2 at most every 60 s (conditional read), and the last good copy is served for up to 1 h if R2 fails (503 after that).
 - Observability is off in `wrangler.toml` and `src/` must not call `console.*`; a test enforces both.
+- `/mix/v1/` keeps a per-isolate cache of parsed source feeds keyed by the index `sha256` (content-addressed, at most 32 MiB), and no composite body cache and no Cache API. Every source read is verified against its index `sha256`. At most 1 index read plus 32 source reads per uncached request.
