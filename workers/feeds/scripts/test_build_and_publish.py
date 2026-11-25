@@ -173,6 +173,10 @@ class Publish(Base):
         self.assertNotIn("Public URL: https://api.example.org/provenage/state", out)
 
     def test_orphan_is_reported_and_left(self):
+        # A vanished feed is only publishable without --force in a dev jurisdiction (M2/C2 guard).
+        with open(self.config, "w") as f:
+            json.dump({"uid_domain": "example.org", "jurisdictions": {"demo-town": {"name": "Demo Town",
+                                                                                  "status": "dev"}}}, f)
         self.go()
         recs = [r for r in fixture() if r["body_slug"] != "planning-commission"]
         code, out, _ = self.go(self.args(recs))
@@ -260,6 +264,152 @@ class ShrinkGuard(Base):
         self.store.data[INDEX] = b"\xff not json"
         self.store.data[LEDGER] = b"{}\n"
         self.assertEqual(self.go()[0], 4)
+
+
+class AliasGuards(Base):
+    """M2/C2: aliases are append-only; a non-dev feed may not vanish without an alias; dev feeds are exempt."""
+
+    def cfg(self, jurisdictions=None, aliases=None):
+        c = {"uid_domain": "example.org",
+             "jurisdictions": jurisdictions or {"demo-town": {"name": "Demo Town"}}}
+        if aliases is not None:
+            c["aliases"] = aliases
+        with open(self.config, "w") as f:
+            json.dump(c, f)
+
+    def recs(self, bodies, j="demo-town"):
+        return [base("%s-%s" % (j, b), b.title(), b, "2026-04-01", "18:00", "Meeting", j=j) for b in bodies]
+
+    def seed_live(self):
+        self.cfg()
+        self.assertEqual(self.go(self.args(self.recs(["alpha", "beta", "gamma"])))[0], 0)
+
+    def test_vanished_body_without_alias_refused_then_forced(self):
+        self.seed_live()
+        before = dict(self.store.data)
+        self.cfg()
+        code, _, err = self.go(self.args(self.recs(["alpha", "beta"])))
+        self.assertEqual(code, 4)
+        self.assertIn("refused: feed calendar/demo-town/gamma.ics disappeared without an alias", err)
+        self.assertEqual(self.store.puts, [])
+        self.assertEqual(self.store.data, before)
+        code, out, _ = self.go(self.args(self.recs(["alpha", "beta"]), force=True))
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING (forced): feed calendar/demo-town/gamma.ics disappeared without an alias", out)
+
+    def test_vanished_body_covered_by_alias_passes(self):
+        self.seed_live()
+        self.cfg(aliases={"bodies": {"demo-town/gamma": "demo-town/beta"}})
+        code, _, err = self.go(self.args(self.recs(["alpha", "beta"])))
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.index()["aliases"]["bodies"], {"demo-town/gamma": "demo-town/beta"})
+
+    def test_retired_alias_null_covers_a_vanished_body(self):
+        self.seed_live()
+        self.cfg(aliases={"bodies": {"demo-town/gamma": None}})
+        self.assertEqual(self.go(self.args(self.recs(["alpha", "beta"])))[0], 0)
+
+    def test_dev_body_vanishing_passes(self):
+        self.cfg({"demo-town": {"name": "Demo Town", "status": "dev"}})
+        self.assertEqual(self.go(self.args(self.recs(["alpha", "beta"])))[0], 0)
+        code, out, err = self.go(self.args(self.recs(["alpha"])))
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("disappeared", out + err)
+
+    def test_new_index_cannot_grant_itself_the_dev_exemption(self):
+        self.seed_live()
+        self.cfg({"demo-town": {"name": "Demo Town", "status": "dev"}})
+        code, _, err = self.go(self.args(self.recs(["alpha", "beta"])))
+        self.assertEqual(code, 4)
+        self.assertIn("gamma.ics disappeared without an alias", err)
+
+    def test_removing_an_alias_refused(self):
+        self.seed_live()
+        self.cfg(aliases={"bodies": {"demo-town/old": "demo-town/beta"}})
+        self.assertEqual(self.go(self.args(self.recs(["alpha", "beta", "gamma"])))[0], 0)
+        self.cfg()
+        code, _, err = self.go(self.args(self.recs(["alpha", "beta", "gamma"])))
+        self.assertEqual(code, 4)
+        self.assertIn("alias body demo-town/old was removed", err)
+        code, out, _ = self.go(self.args(self.recs(["alpha", "beta", "gamma"]), force=True))
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING (forced): alias body demo-town/old was removed", out)
+
+    def test_changing_an_alias_refused(self):
+        self.seed_live()
+        self.cfg(aliases={"bodies": {"demo-town/old": "demo-town/beta"}})
+        self.assertEqual(self.go(self.args(self.recs(["alpha", "beta", "gamma"])))[0], 0)
+        self.cfg(aliases={"bodies": {"demo-town/old": "demo-town/gamma"}})
+        code, _, err = self.go(self.args(self.recs(["alpha", "beta", "gamma"])))
+        self.assertEqual(code, 4)
+        self.assertIn("alias body demo-town/old was changed", err)
+        self.cfg(aliases={"bodies": {"demo-town/old": None}})  # live target to retired is a change too
+        self.assertEqual(self.go(self.args(self.recs(["alpha", "beta", "gamma"])))[0], 4)
+
+    def test_adding_an_alias_and_unchanged_rerun(self):
+        self.seed_live()
+        self.cfg(aliases={"bodies": {"demo-town/old": "demo-town/beta"}})
+        self.assertEqual(self.go(self.args(self.recs(["alpha", "beta", "gamma"])))[0], 0)
+        code, out, _ = self.go(self.args(self.recs(["alpha", "beta", "gamma"])))
+        self.assertEqual(code, 0)
+        self.assertIn("no changes", out)
+        self.assertEqual(self.store.puts, [])
+
+    def test_jurisdiction_alias_covers_all_its_feeds(self):
+        self.cfg({"old-town": {"name": "Old Town"}, "new-town": {"name": "New Town"}})
+        recs = self.recs(["alpha"], j="old-town") + self.recs(["beta"], j="new-town")
+        self.assertEqual(self.go(self.args(recs))[0], 0)
+        self.cfg({"new-town": {"name": "New Town"}}, aliases={"jurisdictions": {"old-town": "new-town"}})
+        code, _, err = self.go(self.args(self.recs(["alpha", "beta"], j="new-town")))
+        self.assertEqual(code, 0, err)
+
+    def _alias_target_missing(self, aliases):
+        self.cfg({"old-town": {"name": "Old Town"}, "new-town": {"name": "New Town"}})
+        recs = self.recs(["alpha", "gamma"], j="old-town") + self.recs(["beta"], j="new-town")
+        self.assertEqual(self.go(self.args(recs))[0], 0)
+        self.cfg({"new-town": {"name": "New Town"}}, aliases=aliases)
+        return self.args(self.recs(["alpha", "beta"], j="new-town"))
+
+    def test_jurisdiction_alias_to_missing_target_feed_refused_then_forced(self):
+        a = self._alias_target_missing({"jurisdictions": {"old-town": "new-town"}})
+        code, _, err = self.go(a)
+        self.assertEqual(code, 4)
+        self.assertIn("refused: feed calendar/old-town/gamma.ics disappeared without an alias", err)
+        a.force = True
+        code, out, _ = self.go(a)
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING (forced): feed calendar/old-town/gamma.ics disappeared without an alias", out)
+
+    def test_jurisdiction_alias_missing_target_ok_with_body_alias(self):
+        for bodies in ({"old-town/gamma": None}, {"old-town/gamma": "new-town/beta"}):
+            self.setUp()
+            a = self._alias_target_missing({"jurisdictions": {"old-town": "new-town"}, "bodies": bodies})
+            code, _, err = self.go(a)
+            self.assertEqual(code, 0, err)
+
+    def test_previous_index_without_new_blocks_is_comparable(self):
+        self.seed_live()
+        idx = self.index()
+        for k in ("aliases", "jurisdictions", "mix"):
+            idx.pop(k, None)
+        self.store.data[INDEX] = json.dumps(idx, sort_keys=True, indent=1).encode() + b"\n"
+        self.assertEqual(self.go(self.args(self.recs(["alpha", "beta", "gamma"])))[0], 0)
+
+    def test_malformed_previous_aliases_are_unreadable(self):
+        self.seed_live()
+        idx = self.index()
+        idx["aliases"] = ["not", "an", "object"]
+        self.store.data[INDEX] = json.dumps(idx).encode()
+        code, _, err = self.go(self.args(self.recs(["alpha", "beta", "gamma"])))
+        self.assertEqual(code, 4)
+        self.assertIn("cannot compare", err)
+
+    def test_alias_problems_unit(self):
+        prev = {"feeds": [{"key": "calendar/a/b.ics"}], "aliases": {"bodies": {"a/x": "a/b"}},
+                "jurisdictions": {"a": {"status": "live"}}}
+        new = {"feeds": [], "aliases": {"bodies": {"a/x": "a/b"}}}
+        self.assertEqual(bp.alias_problems(prev, new), ["feed calendar/a/b.ics disappeared without an alias"])
+        self.assertEqual(bp.alias_problems(prev, dict(new, feeds=prev["feeds"])), [])
 
 
 class LedgerIntegrity(Base):

@@ -14,7 +14,8 @@ This script reads no credentials and never prints the environment. wrangler inhe
 shell provides (for --target remote). --target local uses wrangler's local R2 simulator and needs none.
 
 Exit codes: 0 ok (including "no changes"), 1 build failed, 2 usage or config error, 3 lock held,
-4 shrink guard refused, 5 ledger integrity refused, 6 storage or file-system error, 7 unexpected internal error.
+4 publisher guard refused (shrink, alias, vanished feed),
+5 ledger integrity refused, 6 storage or file-system error, 7 unexpected internal error.
 """
 import argparse
 import fcntl
@@ -159,10 +160,67 @@ def _prev_ok(prev):
     if not isinstance(totals, dict) or isinstance(totals.get("events"), bool) \
             or not isinstance(totals.get("events"), int) or not isinstance(feeds, list):
         return False
-    return all(isinstance(f, dict) and isinstance(f.get("key"), str) and isinstance(f.get("sha256"), str)
+    if not all(isinstance(f, dict) and isinstance(f.get("key"), str) and isinstance(f.get("sha256"), str)
                and (f.get("kind") != "combined" or (isinstance(f.get("jurisdiction"), str)
                                                     and isinstance(f.get("events"), int)))
-               for f in feeds)
+               for f in feeds):
+        return False
+    # Optional additions (0.3.0 indexes). An index from before them has neither key and is still comparable.
+    aliases, jurs = prev.get("aliases"), prev.get("jurisdictions")
+    if aliases is not None and not (isinstance(aliases, dict) and all(
+            isinstance(aliases.get(k, {}), dict) for k in ("bodies", "jurisdictions"))):
+        return False
+    return jurs is None or (isinstance(jurs, dict) and all(isinstance(v, dict) for v in jurs.values()))
+
+
+def _aliases_of(index):
+    a = index.get("aliases") or {}
+    return {k: a.get(k) or {} for k in ("bodies", "jurisdictions")}
+
+
+def _covered(j, b, n_al, new_keys):
+    """Follow the Worker's resolution order (5.3): is a vanished feed j/b retired or moved to a feed still published?"""
+    # 5.3 step 2: a body alias wins (null = retired; the builder guarantees a non-null target is a current feed)
+    if b != "all" and "%s/%s" % (j, b) in n_al["bodies"]:
+        return True
+    # 5.3 steps 1-2: otherwise the jurisdiction alias applies; null = retired, else the moved key must exist
+    if j in n_al["jurisdictions"]:
+        t = n_al["jurisdictions"][j]
+        return t is None or "calendar/%s/%s.ics" % (t, b) in new_keys
+    return False
+
+
+def alias_problems(prev, new) -> List[str]:
+    """Permanence guards for a readable previous index: aliases are append-only, and no non-dev feed key may vanish
+    unless an alias covers it. A feed in a jurisdiction the PREVIOUS index marks status "dev" is exempt (its slug
+    carries no permanence promise); the new index cannot grant itself the exemption."""
+    problems = []
+    p_al, n_al = _aliases_of(prev), _aliases_of(new)
+    for kind in ("bodies", "jurisdictions"):
+        for src in sorted(p_al[kind]):
+            if src not in n_al[kind]:
+                problems.append("alias %s %s was removed (aliases are append-only)" % (
+                    "body" if kind == "bodies" else "jurisdiction", src))
+            elif n_al[kind][src] != p_al[kind][src]:
+                problems.append("alias %s %s was changed from %s to %s (aliases are append-only)" % (
+                    "body" if kind == "bodies" else "jurisdiction", src, json.dumps(p_al[kind][src]),
+                    json.dumps(n_al[kind][src])))
+    dev = {j for j, v in (prev.get("jurisdictions") or {}).items() if v.get("status") == "dev"}
+    new_keys = {f["key"] for f in new["feeds"]}
+    for f in sorted(prev["feeds"], key=lambda e: e["key"]):
+        k = f["key"]
+        if k in new_keys:
+            continue
+        m = FEED_KEY_RE.match(k)
+        if not m:
+            continue  # cannot be a key this publisher produced; nothing to protect
+        j, b = k.split("/")[1], k.split("/")[2][:-4]
+        if j in dev:
+            continue
+        if _covered(j, b, n_al, new_keys):
+            continue
+        problems.append("feed %s disappeared without an alias" % k)
+    return problems
 
 
 def shrink_problems(prev, new) -> List[str]:
@@ -184,11 +242,13 @@ def shrink_problems(prev, new) -> List[str]:
         if f.get("kind") != "combined":
             continue
         j, p = f["jurisdiction"], f["events"]
+        if j not in new_comb and j in _aliases_of(new)["jurisdictions"]:
+            continue  # renamed or retired through an alias; alias_problems checks every feed key is covered
         if j not in new_comb:
             problems.append("jurisdiction %s disappeared (%d events)" % (j, p))
         elif p > 0 and new_comb[j] * 2 < p:
             problems.append("jurisdiction %s events dropped from %d to %d (more than 50%%)" % (j, p, new_comb[j]))
-    return problems
+    return problems + alias_problems(prev, new)
 
 
 def _fail(code, msg):
@@ -505,7 +565,7 @@ def parse_args(argv):
                     help="local = wrangler's local simulator; remote = the real bucket (needs the operator's env)")
     ap.add_argument("--persist-to", help="local simulator state directory (only with --target local)")
     ap.add_argument("--dry-run", action="store_true", help="build, check and print the plan; write nothing")
-    ap.add_argument("--force", action="store_true", help="publish despite a shrink-guard refusal")
+    ap.add_argument("--force", action="store_true", help="publish despite a guard refusal; each override is printed")
     ap.add_argument("--init-ledger", action="store_true",
                     help="start an empty ledger although calendar/index.json exists (resets SEQUENCE)")
     ap.add_argument("--work-dir", help="scratch directory: must be new or empty, or carry the marker file this "
