@@ -47,8 +47,17 @@ test('index href field is never read', () => {
   assert.doesNotMatch(app, /\b(?:f|feed|entry|item)\.href\b|\[['"]href['"]\]/);
 });
 
-test('page files exist; this change adds no deploy workflow', () => {
-  for (const f of ['index.html', 'app.js', 'canon.js', 'style.css', '.nojekyll']) assert.ok(existsSync(new URL(`../../${f}`, import.meta.url)), f);
-  const wf = readdirSync(new URL('../../../.github/workflows/', import.meta.url));
-  assert.ok(!wf.includes('pages.yml'), 'the Pages deploy workflow is a separate step');
+test('page files exist and the Pages workflow uploads only the page files', () => {
+  const files = ['index.html', 'app.js', 'canon.js', 'style.css', '.nojekyll'];
+  for (const f of files) assert.ok(existsSync(new URL(`../../${f}`, import.meta.url)), f);
+  const wf = readFileSync(new URL('../../../.github/workflows/pages.yml', import.meta.url), 'utf8');
+  const copied = wf.match(/for f in ([^;\n]+);\s*do\b/);
+  assert.ok(copied, 'workflow copies an explicit file list');
+  assert.deepEqual(copied[1].trim().split(/\s+/).sort(), [...files].sort());
+  assert.match(wf, /upload-pages-artifact@[0-9a-f]{40}[\s\S]*?path: _pages\n/);
+  assert.doesNotMatch(wf, /path:\s*(\.|site\/?)\s*$/m, 'never uploads the repo root or all of site/');
+  assert.doesNotMatch(wf, /pull_request|secrets\./);
+  assert.match(wf, /group: pages\n\s*cancel-in-progress: false/);
+  assert.match(wf, /environment:\s*\n\s*name: github-pages/);
+  for (const m of wf.matchAll(/uses:\s*(\S+)@(\S+)/g)) assert.match(m[2], /^[0-9a-f]{40}$/, `${m[1]} pinned by SHA`);
 });
