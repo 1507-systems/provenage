@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://api.1507.systems; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Pick the public meetings you care about and get one calendar address to subscribe to. Unofficial; not affiliated with any government.">
+<title>Meeting calendar builder</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Meeting calendar builder</h1>
+  <p class="lead">Pick the public meetings you want. You get one calendar address that keeps itself up to date in your calendar app.</p>
+</header>
+
+<noscript>
+  <section class="box" aria-labelledby="nojs-h">
+    <h2 id="nojs-h">JavaScript is needed for this page</h2>
+    <p>The picker needs JavaScript. Without it you can still subscribe to a single calendar or build an address by hand:</p>
+    <ul>
+      <li><a href="https://api.1507.systems/provenage/calendar/index.json">The list of every published calendar (index.json)</a></li>
+      <li><a href="https://github.com/1507-systems/provenage/blob/main/docs/CALENDAR.md">How calendar addresses are built (CALENDAR.md)</a></li>
+    </ul>
+  </section>
+</noscript>
+
+<main id="main">
+  <div id="state" class="box" role="status" hidden>Loading the list of calendars&hellip;</div>
+
+  <div id="error" class="box error" role="alert" hidden>
+    <p id="error-text"></p>
+    <button type="button" id="retry" class="btn">Retry</button>
+    <button type="button" id="reload" class="btn" hidden>Reload the page</button>
+  </div>
+
+  <section id="picker" aria-labelledby="picker-h" hidden>
+    <h2 id="picker-h">1. Choose meetings</h2>
+    <div class="filter">
+      <label for="filter">Filter places and boards</label>
+      <input type="search" id="filter" autocomplete="off" spellcheck="false">
+      <p id="count" class="muted" aria-live="polite"></p>
+    </div>
+    <p id="cap-note" class="note" hidden></p>
+    <div id="restore" class="note" role="status" hidden></div>
+    <div id="groups"></div>
+
+    <details id="change" class="change">
+      <summary>Change an existing address</summary>
+      <div class="change-body">
+        <label for="paste">Paste a calendar address from this page</label>
+        <input type="text" id="paste" autocomplete="off" spellcheck="false">
+        <button type="button" id="paste-go" class="btn">Load these choices</button>
+      </div>
+    </details>
+  </section>
+
+  <section id="result" class="result" aria-labelledby="result-h" hidden>
+    <h2 id="result-h">2. Your calendar address</h2>
+    <p id="result-hint" class="muted"></p>
+    <label for="address">Calendar address</label>
+    <input type="text" id="address" readonly>
+    <div class="actions">
+      <button type="button" id="copy" class="btn primary" disabled>Copy</button>
+      <button type="button" id="apple" class="btn" disabled>Apple Calendar</button>
+      <button type="button" id="google" class="btn" disabled>Google Calendar</button>
+      <button type="button" id="outlook" class="btn" disabled>Outlook.com</button>
+      <button type="button" id="m365" class="btn" disabled>Microsoft 365</button>
+    </div>
+    <p id="action-msg" class="muted" role="status"></p>
+    <div id="notes"></div>
+    <details id="separate" class="change" hidden>
+      <summary>Subscribe to each separately</summary>
+      <ul id="separate-list" class="plain"></ul>
+    </details>
+    <ul class="tips">
+      <li>Subscribe to the address; do not import a file. A subscription updates itself.</li>
+      <li>Changing your choices gives a new address. Remove the old subscription, or you will see every meeting twice.</li>
+      <li>Google Calendar can take up to a day to refresh. Use a computer to add by address; the Google phone app cannot.</li>
+    </ul>
+  </section>
+</main>
+
+<footer>
+  <p>Unofficial. This is not an official government calendar, and meeting times can change; check the official notice before attending.</p>
+  <p>Privacy: your choices stay in this page's address and are never sent to us. Loading the list fetches one file; your calendar app later fetches the address you give it, so its provider and our host will see that address.</p>
+</footer>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

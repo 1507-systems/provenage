@@ -1,0 +1,149 @@
+{
+ "aliases": {
+  "bodies": {
+   "alpha-town/old-commission": "alpha-town/planning-commission",
+   "alpha-town/retired-board": null
+  },
+  "jurisdictions": {
+   "gamma-town": "alpha-town",
+   "lost-town": null
+  }
+ },
+ "feeds": [
+  {
+   "body": "all",
+   "body_name": null,
+   "cancelled": 1,
+   "events": 4,
+   "href": "alpha-town/all.ics",
+   "jurisdiction": "alpha-town",
+   "key": "calendar/alpha-town/all.ics",
+   "kind": "combined",
+   "sha256": "35433c4acbc8557108c55499bb33d12956d2ff544668e655e5433d154870d999",
+   "size": 2348,
+   "title": "Alpha Town: All meetings"
+  },
+  {
+   "body": "city-council",
+   "body_name": "City Council",
+   "cancelled": 0,
+   "events": 2,
+   "href": "alpha-town/city-council.ics",
+   "jurisdiction": "alpha-town",
+   "key": "calendar/alpha-town/city-council.ics",
+   "kind": "body",
+   "sha256": "1d7021be78c75c0ff6a6e180c4b7a413efab8f9020631a0eba31414553817a00",
+   "size": 1426,
+   "title": "Alpha Town: City Council"
+  },
+  {
+   "body": "planning-commission",
+   "body_name": "Planning Commission",
+   "cancelled": 1,
+   "events": 2,
+   "href": "alpha-town/planning-commission.ics",
+   "jurisdiction": "alpha-town",
+   "key": "calendar/alpha-town/planning-commission.ics",
+   "kind": "body",
+   "sha256": "fac892e8a567e74f1819644fa9c3a397fd4cc5ccc913f64f793580bb193ff1b7",
+   "size": 1525,
+   "title": "Alpha Town: Planning Commission"
+  },
+  {
+   "body": "all",
+   "body_name": null,
+   "cancelled": 0,
+   "events": 3,
+   "href": "beta-county/all.ics",
+   "jurisdiction": "beta-county",
+   "key": "calendar/beta-county/all.ics",
+   "kind": "combined",
+   "sha256": "bd5adfb15244d2b430f0369e6119a89b54164b60e6f1cde71399e3740c9b0c50",
+   "size": 1933,
+   "title": "Beta County Government: All meetings"
+  },
+  {
+   "body": "board-of-commissioners",
+   "body_name": "Board of Commissioners",
+   "cancelled": 0,
+   "events": 2,
+   "href": "beta-county/board-of-commissioners.ics",
+   "jurisdiction": "beta-county",
+   "key": "calendar/beta-county/board-of-commissioners.ics",
+   "kind": "body",
+   "sha256": "1f533db5d367089866f792d4cc354e0c16e7b646de2cde178afba6a7f42995ab",
+   "size": 1491,
+   "title": "Beta County Government: Board of Commissioners"
+  },
+  {
+   "body": "parks-board",
+   "body_name": "Parks, Rec; Board \\ <script>alert(1)</script>",
+   "cancelled": 0,
+   "events": 1,
+   "href": "beta-county/parks-board.ics",
+   "jurisdiction": "beta-county",
+   "key": "calendar/beta-county/parks-board.ics",
+   "kind": "body",
+   "sha256": "dd75566df01a6d41a107febc33f35d9ce6430bf03f3c061bd593fd6c405f6c88",
+   "size": 1099,
+   "title": "Beta County Government: Parks, Rec; Board \\ <script>alert(1)</script>"
+  },
+  {
+   "body": "all",
+   "body_name": null,
+   "cancelled": 0,
+   "events": 2,
+   "href": "cafe-ville/all.ics",
+   "jurisdiction": "cafe-ville",
+   "key": "calendar/cafe-ville/all.ics",
+   "kind": "combined",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "size": 1000,
+   "title": "x"
+  },
+  {
+   "body": "zoning-hearing-board",
+   "body_name": "Zoning Hearing Board",
+   "cancelled": 0,
+   "events": 2,
+   "href": "cafe-ville/zoning-hearing-board.ics",
+   "jurisdiction": "cafe-ville",
+   "key": "calendar/cafe-ville/zoning-hearing-board.ics",
+   "kind": "body",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "size": 1000,
+   "title": "x"
+  }
+ ],
+ "generated_at": "2026-03-01T06:00:00Z",
+ "jurisdictions": {
+  "alpha-town": {
+   "name": "Alpha Town",
+   "short_name": "Alpha",
+   "status": "live"
+  },
+  "beta-county": {
+   "name": "Beta County Government",
+   "short_name": "Beta Co",
+   "status": "dev"
+  },
+  "cafe-ville": {
+   "name": "Caf\u00e9 Ville Municipal Government of the Extraordinarily Long Name",
+   "short_name": "Caf\u00e9",
+   "status": "live"
+  }
+ },
+ "mix": {
+  "issue_max_bytes": 2000000,
+  "max_refs": 32,
+  "max_selection_bytes": 1536,
+  "path": "mix/v1/",
+  "version": 1
+ },
+ "schema": "provenage-calendar-index/1",
+ "totals": {
+  "cancelled": 1,
+  "events": 7,
+  "feeds": 8
+ }
+}

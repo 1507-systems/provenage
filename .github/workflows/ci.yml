@@ -100,3 +100,36 @@ jobs:
       - name: Audit (Worker, final gate)
         working-directory: workers/feeds
         run: npm audit --audit-level=high
+
+  site:
+    # Validation only: tests the static builder page (site/) in headless Chromium. Deploys nothing.
+    # Pinned to ubuntu-latest because Playwright needs the OS libraries installed with --with-deps (sudo).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install (page tests, exact from lockfile)
+        working-directory: site
+        run: npm ci
+
+      - name: Unit tests (grammar vectors shared with the Worker, banned APIs, CSP text)
+        working-directory: site
+        run: npm run test:unit
+
+      - name: Install Chromium
+        working-directory: site
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests (axe accessibility, 320 px width, CSP, XSS, states)
+        working-directory: site
+        run: npm run test:e2e
+
+      - name: Audit (page tests)
+        working-directory: site
+        run: npm audit --audit-level=high
