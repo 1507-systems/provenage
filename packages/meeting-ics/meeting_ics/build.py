@@ -16,7 +16,7 @@ _BASIS_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 _DURATION_RE = re.compile(r"P(?!$)(?:(?P<w>[0-9]+)W|(?:(?P<d>[0-9]+)D)?(?:T(?=[0-9])(?:(?P<h>[0-9]+)H)?"
                           r"(?:(?P<m>[0-9]+)M)?(?:(?P<s>[0-9]+)S)?)?)")
 _CONTROL_RE = re.compile("[\x00-\x1f\x7f]")
-_CANCELLED_PREFIX_RE = re.compile(r"\s*cancell?ed\s*:\s*", re.IGNORECASE)   # Cancelled: / Canceled:
+_CANCELLED_PREFIX_RE = re.compile(r"^\s*cancell?ed\s*:\s*", re.IGNORECASE)   # leading Cancelled: / Canceled: only
 MAX_BASIS = 64
 
 
@@ -57,7 +57,10 @@ class BuildOptions:
             if not secs:
                 raise ValueError("default_duration must be a positive RFC 5545 duration like PT3H or PT90M, got %r"
                                  % (d["default_duration"],))
-            d["default_duration"] = datetime.timedelta(seconds=secs)
+            try:
+                d["default_duration"] = datetime.timedelta(seconds=secs)
+            except OverflowError:
+                raise ValueError("default_duration is out of range: %r" % (d["default_duration"],)) from None
             if "default_duration_minutes" in d or "default_duration_hours" in d:
                 raise ValueError("give default_duration or default_duration_minutes/_hours, not both")
         for key, unit in (("default_duration_minutes", "minutes"), ("default_duration_hours", "hours")):
@@ -268,7 +271,7 @@ def build_with_report(records, options=None, ledger=None):
         if status == "postponed":
             summary = "Postponed: " + summary
         elif STATUS_EMIT[status][0] == "CANCELLED":
-            summary = "Cancelled: " + _CANCELLED_PREFIX_RE.sub("", summary, count=1)
+            summary = "Cancelled: " + summary
         ev = ["BEGIN:VEVENT", "UID:" + uid, "DTSTAMP:" + ics_utc(stamp),
               "DTSTART;TZID=%s:%s" % (tzid, start_dt.strftime("%Y%m%dT%H%M%S")),
               "DTEND;TZID=%s:%s" % (tzid, end_dt.strftime("%Y%m%dT%H%M%S")),

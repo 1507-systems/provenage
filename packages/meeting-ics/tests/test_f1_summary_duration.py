@@ -29,6 +29,19 @@ class CancelledPrefix(unittest.TestCase):
                 self.assertEqual(summary(status="cancelled", meeting_type=title),
                                  "SUMMARY:Cancelled: City Council Regular Session")
 
+    def test_text_preserved_when_prefix_not_leading(self):
+        for title, want in (
+                ("Precancelled: x", "Cancelled: City Council Precancelled: x"),
+                ("Regular Session - Cancelled: see notice",
+                 "Cancelled: City Council Regular Session - Cancelled: see notice"),
+                ("Special Meeting re cancelled : items",
+                 "Cancelled: City Council Special Meeting re cancelled : items"),
+                ("Regular Session (Cancelled: weather)",
+                 "Cancelled: City Council Regular Session (Cancelled: weather)"),
+                ("Cancelled: Cancelled: Regular", "Cancelled: City Council Cancelled: Regular")):
+            with self.subTest(title=title):
+                self.assertEqual(summary(status="cancelled", meeting_type=title), "SUMMARY:" + want)
+
     def test_status_cancelled_kept_and_other_statuses_unprefixed(self):
         out = build(records_from_json([good(status="cancelled")]), OPTS, Ledger()).decode()
         self.assertIn("\r\nSTATUS:CANCELLED\r\n", out)
@@ -76,7 +89,8 @@ class DefaultDuration(unittest.TestCase):
 
     def test_bad_values(self):
         for cfg in ({"default_duration": "90"}, {"default_duration": "PT0S"}, {"default_duration": "P"},
-                    {"default_duration": "PT30S"}, {"default_duration": "PT1H", "default_duration_hours": 2}):
+                    {"default_duration": "PT30S"}, {"default_duration": "P9999999999W"},
+                    {"default_duration": "PT1H", "default_duration_hours": 2}):
             with self.subTest(cfg=cfg), self.assertRaises(ValueError):
                 BuildOptions.from_dict(cfg).validate()
 
