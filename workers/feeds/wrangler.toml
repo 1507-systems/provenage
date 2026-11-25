@@ -11,3 +11,9 @@ workers_dev = false
 binding = "FEEDS"
 # Placeholder: the maintainer creates this bucket. The name is never exposed in responses.
 bucket_name = "provenage-feeds"
+
+# Privacy: request logs and traces are OFF and must stay off. Feed URLs (and, later,
+# selections encoded in them) are never recorded by this Worker. The test suite also
+# fails if src/ calls console.*.
+[observability]
+enabled = false
