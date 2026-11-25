@@ -413,6 +413,14 @@ function wireActions() {
     e.target.select();
     e.target.scrollIntoView({ block: 'nearest' });
   });
+  // Some engines (WebKit on Linux) do not apply scroll-padding to focus scrolling, so a control that is already
+  // inside the viewport can sit under the sticky result panel. Scroll it clear explicitly (SC 2.4.11).
+  $('picker').addEventListener('focusin', (e) => {
+    const panel = $('result');
+    if (panel.hidden || getComputedStyle(panel).position !== 'sticky') return;
+    const over = e.target.getBoundingClientRect().bottom - panel.getBoundingClientRect().top;
+    if (over > 0) window.scrollBy(0, over + 8);
+  });
 }
 
 // ---------- page address (fragment) ----------
