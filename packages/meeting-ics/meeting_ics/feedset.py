@@ -264,8 +264,8 @@ def _check_cross_jurisdiction_uids(records) -> None:
 
 def prepare_records(records, meta: Optional[SetMeta] = None):
     """The set-level steps that precede record validation: apply the per-jurisdiction uid_namespace, then refuse
-    a UID shared by two jurisdictions. Shared by build_feedset and `validate --config` so the pre-publish check
-    cannot disagree with the build."""
+    a UID shared by two jurisdictions. Used by build_feedset; `validate --config` runs the whole build_feedset in memory
+    so the pre-publish check cannot disagree with the build."""
     records = _apply_namespaces(list(records), meta.uid_namespaces if meta else {})
     _check_cross_jurisdiction_uids(records)
     return records

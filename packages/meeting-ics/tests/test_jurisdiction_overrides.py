@@ -285,6 +285,25 @@ class MultiInput(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("UID collision across jurisdictions", err)
 
+    def test_validate_with_config_rejects_misspelt_override_slug(self):
+        with open(self.cfg, "w", encoding="utf-8") as f:
+            json.dump(dict(demo_cfg(), jurisdictions={"longmnt-co": {"name": "L", "uid_namespace": "longmont-co"}}), f)
+        args = ("--input", self.p["demo-town"], "--config", self.cfg)
+        code, _o, err = self.run_cli("validate", *self.common, *args)
+        self.assertEqual(code, 2)
+        self.assertIn("no records", err)
+        code2, _o, err2 = self.run_cli("build-set", *self.common, *args, "--ledger",
+                                       os.path.join(self.tmp.name, "l.json"), "--out", os.path.join(self.tmp.name, "o"))
+        self.assertEqual((code2, err2), (2, err))
+
+    def test_validate_with_config_rejects_reserved_body_slug(self):
+        bad = os.path.join(self.tmp.name, "all.csv")
+        with open(bad, "w", encoding="utf-8") as f:
+            f.write(demo_text().replace("planning-commission", "all"))
+        code, _o, err = self.run_cli("validate", *self.common, "--input", bad, "--config", self.cfg)
+        self.assertEqual(code, 2)
+        self.assertIn("all", err)
+
     def test_single_input_still_works(self):
         code, out, _e = self.run_cli("validate", *self.common, "--input", self.p["demo-town"])
         self.assertEqual((code, out.strip()), (0, "ok records=11"))

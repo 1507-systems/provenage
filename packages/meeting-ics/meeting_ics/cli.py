@@ -126,10 +126,12 @@ def _build_set(a):
 
 def _validate(a):
     records = load_many(a.input, a.adapter, a.uid_namespace, a.retrieved_at)
-    if a.config:  # same set-level steps as build-set, so the check agrees with the build
+    if a.config:  # run the real set build in memory (writes nothing) so this can never disagree with build-set
         with open(a.config, encoding="utf-8") as f:
-            _options, _names, meta = feedset.load_set_meta(json.load(f))
-        records = feedset.prepare_records(records, meta)
+            options, names, meta = feedset.load_set_meta(json.load(f))
+        feedset.build_feedset(records, options, None, names, meta)
+        print("ok records=%d" % len(validate_records(feedset.prepare_records(records, meta))))
+        return
     records = validate_records(records)
     print("ok records=%d" % len(records))
 
