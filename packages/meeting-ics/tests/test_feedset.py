@@ -202,7 +202,7 @@ class Index(unittest.TestCase):
                          ("body", "City Council", "Demo Town: City Council"))
         self.assertTrue(fs.index_bytes.endswith(b"\n"))
         self.assertEqual(fs.index_bytes, encode_index(fs.index))
-        self.assertEqual(set(idx), {"feeds", "generated_at", "schema", "totals"})
+        self.assertEqual(set(idx), {"aliases", "feeds", "generated_at", "jurisdictions", "mix", "schema", "totals"})
 
 
 class Rejections(unittest.TestCase):

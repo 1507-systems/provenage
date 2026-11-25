@@ -2,6 +2,19 @@
 
 ## 0.2.1 - unreleased
 
+### Added (index contract for the feed builder)
+
+- `calendar/index.json` (still `provenage-calendar-index/1`) gains three additive top-level keys: `jurisdictions`
+  (`name`, `short_name`, `status` per jurisdiction in the set), `aliases` (`bodies` and `jurisdictions`, empty by
+  default) and `mix` (builder limits). Feed entries and feed bytes are unchanged; consumers should ignore unknown
+  fields.
+- Set config: each `jurisdictions.<slug>` accepts optional `short_name` (single line, at most 40 characters;
+  defaults to `name`, and a longer default is refused) and `status` (`live` default, or `dev`). A top-level
+  `aliases` object (`bodies`: `"j/b"` to `"j/b"` or `null`; `jurisdictions`: `"j"` to `"j"` or `null`) records
+  renamed or retired slugs. `build-set` exits 2 when an alias source is a current feed or jurisdiction, a target is
+  not in the set, or a target is itself an alias source.
+- `feedset.load_set_meta` returns the extra settings; `load_set_config` keeps its two-value return.
+
 ### Changed
 
 - Cancelled meetings (status `cancelled` or `canceled`) get a `Cancelled: ` SUMMARY prefix, alongside the existing
