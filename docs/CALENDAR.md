@@ -6,12 +6,16 @@
 - The UID is stable and survives revisions (rescheduling, renaming, edits).
 - Cancellation is an update with `STATUS:CANCELLED`, never a deletion.
 - Status maps to STATUS as follows: scheduled, rescheduled and completed are `CONFIRMED`; postponed is
-  `TENTATIVE` and its SUMMARY is prefixed `Postponed: `; cancelled is `CANCELLED`. Rescheduled, completed and
+  `TENTATIVE` and its SUMMARY is prefixed `Postponed: `; cancelled is `CANCELLED` and its SUMMARY is prefixed `Cancelled: ` (some clients show a
+  cancelled event in a subscribed calendar like a normal one; the prefix is not doubled when the source title already
+  starts with it). The prefix is not hashed, so adding it does not bump SEQUENCE. Rescheduled, completed and
   postponed also carry `<x_prefix>-LIFECYCLE:<state>` (for example `X-MEETING-ICS-LIFECYCLE:postponed`), because
   clients do not render those states from STATUS alone. A status derived from the title rather than observed
   carries `<x_prefix>-STATUS-BASIS:derived-from-title-not-observed`. See docs/DATA-MODEL.md for the full table.
 - The builder validates every input record before building and refuses an empty input rather than
   publishing an empty feed. An unknown status is an error, not a silent omission of STATUS.
+- The first link in DESCRIPTION is labelled `Meeting page:` (the record's `links.portal`, which is the city's page for
+  that meeting, not necessarily a portal). The `URL` property carries the same link.
 - Join details (`remote_access`) appear in DESCRIPTION after the links, as `Join online: <url>` and
   `Dial-in: <text>`, and a change to them bumps SEQUENCE.
 - SEQUENCE is bumped on a calendar-critical change or a change to the document set
@@ -89,7 +93,8 @@ Sources rarely publish an end time. In order:
 
 1. Observed end, if the source gives one.
 2. Per-meeting-type rule, for example a duration configured for study sessions.
-3. Default duration.
+3. Default duration: 3 hours unless the feed sets `default_duration` (for example `"PT90M"`). Set it shorter where a
+   meeting with no published end would otherwise overlap the one that follows it.
 
 The basis used is always declared in an X- property on the event,
 `<x_prefix>-DTEND-BASIS` (`X-MEETING-ICS-DTEND-BASIS` by default; an install may set

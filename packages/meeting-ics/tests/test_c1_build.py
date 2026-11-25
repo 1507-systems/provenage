@@ -42,8 +42,8 @@ class StatusTable(unittest.TestCase):
         "completed": ("CONFIRMED", ["X-MEETING-ICS-LIFECYCLE:completed"], ["STATUS-BASIS"]),
         "postponed": ("TENTATIVE", ["X-MEETING-ICS-LIFECYCLE:postponed",
                                     "SUMMARY:Postponed: City Council Regular Session"], ["STATUS-BASIS"]),
-        "cancelled": ("CANCELLED", [], ["LIFECYCLE", "STATUS-BASIS"]),
-        "canceled": ("CANCELLED", [], ["LIFECYCLE", "STATUS-BASIS"]),
+        "cancelled": ("CANCELLED", ["SUMMARY:Cancelled: City Council Regular Session"], ["LIFECYCLE", "STATUS-BASIS"]),
+        "canceled": ("CANCELLED", ["SUMMARY:Cancelled: City Council Regular Session"], ["LIFECYCLE", "STATUS-BASIS"]),
     }
 
     def test_each_status(self):
@@ -56,7 +56,7 @@ class StatusTable(unittest.TestCase):
                     self.assertIn("\r\n" + line + "\r\n", out)
                 for word in absent:
                     self.assertNotIn(word, out)
-                if status != "postponed":
+                if status not in ("postponed", "cancelled", "canceled"):
                     self.assertIn("SUMMARY:City Council Regular Session", out)
                 self.assertNotIn("unmapped-status", out)
 
@@ -97,7 +97,7 @@ class RemoteAccess(unittest.TestCase):
         led = Ledger()
         ics(good(), led)
         out = ics(good(remote_access=RA), led)
-        self.assertIn("DESCRIPTION:Portal: https://demo.example/m/1\\nJoin online: https://zoom.example/j/1"
+        self.assertIn("DESCRIPTION:Meeting page: https://demo.example/m/1\\nJoin online: https://zoom.example/j/1"
                       "\\nDial-in: +1 555 0100\\nID 123", unfolded(out))
         self.assertIn("SEQUENCE:1", out)
 

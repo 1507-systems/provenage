@@ -42,7 +42,7 @@ DTSTAMP:20260101T000000Z
 DTSTART;TZID=America/Denver:20260303T180000
 DTEND;TZID=America/Denver:20260303T210000
 SUMMARY:City Council Regular Session
-DESCRIPTION:Portal: https://example.org/meetings/1
+DESCRIPTION:Meeting page: https://example.org/meetings/1
 LOCATION:Council Chambers\, 1 Example Way
 URL:https://example.org/meetings/1
 STATUS:CONFIRMED
@@ -69,7 +69,7 @@ UID:t-3@example.org
 DTSTAMP:20260101T000000Z
 DTSTART;TZID=America/New_York:20260312T173000
 DTEND;TZID=America/New_York:20260312T203000
-SUMMARY:Library Board Special Meeting
+SUMMARY:Cancelled: Library Board Special Meeting
 DESCRIPTION:Agenda: https://example.org/meetings/3/agenda
 LOCATION:Library Annex
 STATUS:CANCELLED
@@ -84,7 +84,7 @@ DTSTAMP:20260101T000000Z
 DTSTART;TZID=America/Denver:20260317T160000
 DTEND;TZID=America/Denver:20260317T190000
 SUMMARY:City Council Board Study Session
-DESCRIPTION:Portal: https://example.org/meetings/4
+DESCRIPTION:Meeting page: https://example.org/meetings/4
 LOCATION:Conference Room B
 URL:https://example.org/meetings/4
 STATUS:CONFIRMED

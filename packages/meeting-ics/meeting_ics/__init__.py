@@ -12,4 +12,4 @@ from .validate import SLUG_RE, RecordError, load_input, parse_input, validate_re
 __all__ = ["MeetingRecord", "records_from_json", "Ledger", "BuildOptions", "build", "build_with_report",
            "FeedSet", "FeedFile", "build_feedset", "RecordError", "parse_input", "validate_records", "load_input",
            "STATUS_EMIT", "STATUS_CANONICAL", "STATUS_ALIASES", "SLUG_RE"]
-__version__ = "0.2.0"
+__version__ = "0.2.1"

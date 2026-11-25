@@ -32,8 +32,8 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261007T180000
 DTEND;TZID=America/Chicago:20261007T210000
 SUMMARY:Planning Commission Regular Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/pc-201\nAgenda: http
- s://demo-town.example/meetings/pc-201/agenda.pdf
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/pc-201\nAgenda
+ : https://demo-town.example/meetings/pc-201/agenda.pdf
 LOCATION:Demo Town Hall\, Room 2B\; 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/pc-201
 STATUS:CONFIRMED
@@ -47,7 +47,7 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261104T180000
 DTEND;TZID=America/Chicago:20261104T210000
 SUMMARY:Planning Commission Regular Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/pc-202
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/pc-202
 LOCATION:Demo Town Hall\, Room 2B\; 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/pc-202
 STATUS:CONFIRMED
@@ -61,7 +61,7 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261118T180000
 DTEND;TZID=America/Chicago:20261118T210000
 SUMMARY:Planning Commission Regular Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/pc-203
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/pc-203
 LOCATION:Demo Town Hall\, Room 2B\; 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/pc-203
 STATUS:CONFIRMED

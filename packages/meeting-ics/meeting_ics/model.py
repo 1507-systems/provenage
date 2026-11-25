@@ -37,7 +37,7 @@ Status mapping (input status -> STATUS, extra line, SUMMARY); <X> is the x_prefi
   rescheduled               CONFIRMED   <X>-LIFECYCLE:rescheduled
   completed                 CONFIRMED   <X>-LIFECYCLE:completed
   postponed                 TENTATIVE   <X>-LIFECYCLE:postponed, SUMMARY prefixed "Postponed: "
-  cancelled, canceled       CANCELLED   (the event stays in the feed)
+  cancelled, canceled       CANCELLED   (the event stays in the feed), SUMMARY prefixed "Cancelled: "
 
 Validation lives in meeting_ics.validate (the only record validator). Constructing a MeetingRecord directly
 does no validation; build() validates every record.
@@ -60,7 +60,7 @@ STATUS_EMIT = {
 }
 STATUS_CANONICAL = ("scheduled", "rescheduled", "cancelled", "postponed", "completed")
 STATUS_ALIASES = {"confirmed": "scheduled", "scheduled_not_cancelled": "scheduled", "canceled": "cancelled"}
-LINK_LABELS = (("portal", "Portal"), ("agenda", "Agenda"), ("packet", "Packet"),
+LINK_LABELS = (("portal", "Meeting page"), ("agenda", "Agenda"), ("packet", "Packet"),
                ("minutes", "Minutes"), ("video", "Video"))
 
 

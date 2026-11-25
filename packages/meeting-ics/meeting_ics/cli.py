@@ -12,7 +12,8 @@
 retrieved_at cells and is valid only with --adapter csv_template.
 --input is a records JSON (list or {"records": [...], "schema_version": 1}) unless --adapter names a module in
 meeting_ics.adapters (e.g. a module you wrote), in which case it is that source's file.
---config is a JSON object of BuildOptions fields (prodid, uid_domain, default_duration_hours|_minutes, end_rules,
+--config is a JSON object of BuildOptions fields (prodid, uid_domain, default_duration (ISO 8601, e.g. PT90M) or
+default_duration_hours|_minutes, end_rules,
 x_prefix, detail, calendar_name, calendar_description, method, refresh_interval). Unknown keys are an error.
 end_rules entries: [substring, "HH:MM"] or {"match":..,"end_local":..,"basis":..}.
 
