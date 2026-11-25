@@ -91,10 +91,10 @@ def _build(a):
 
 def _build_set(a):
     with open(a.config, encoding="utf-8") as f:
-        options, names = feedset.load_set_config(json.load(f))
+        options, names, meta = feedset.load_set_meta(json.load(f))
     records = load_records(a.input, a.adapter, a.uid_namespace, a.retrieved_at)
     ledger = Ledger.load(a.ledger)
-    fs = feedset.build_feedset(records, options, ledger, names)  # nothing is written before this succeeds
+    fs = feedset.build_feedset(records, options, ledger, names, meta)  # nothing is written before this succeeds
     feedset.write_feedset(fs, a.out, a.overwrite)
     fs.ledger.save(a.ledger)  # last: a failed ledger save leaves feeds that rebuild identically
     t = fs.index["totals"]

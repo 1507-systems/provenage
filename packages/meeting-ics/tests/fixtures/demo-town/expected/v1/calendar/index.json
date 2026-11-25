@@ -1,4 +1,8 @@
 {
+ "aliases": {
+  "bodies": {},
+  "jurisdictions": {}
+ },
  "feeds": [
   {
    "body": "all",
@@ -41,6 +45,20 @@
   }
  ],
  "generated_at": "2026-10-01T15:00:00Z",
+ "jurisdictions": {
+  "demo-town": {
+   "name": "Demo Town",
+   "short_name": "Demo Town",
+   "status": "live"
+  }
+ },
+ "mix": {
+  "issue_max_bytes": 2000000,
+  "max_refs": 32,
+  "max_selection_bytes": 1536,
+  "path": "mix/v1/",
+  "version": 1
+ },
  "schema": "provenage-calendar-index/1",
  "totals": {
   "cancelled": 1,
