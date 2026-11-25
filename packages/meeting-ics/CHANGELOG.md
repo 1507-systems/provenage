@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.1 - unreleased
+
+### Changed
+
+- Cancelled meetings (status `cancelled` or `canceled`) get a `Cancelled: ` SUMMARY prefix, alongside the existing
+  `Postponed: ` prefix, because some clients render a cancelled event in a subscribed calendar like a normal one.
+  `STATUS:CANCELLED` is kept. The prefix is never doubled: a source title that already starts with `Cancelled:` or
+  `Canceled:` (any case) is normalised to one `Cancelled: `. The prefix is not part of the change hash, so it does
+  not bump SEQUENCE or LAST-MODIFIED when an existing feed is republished; clients see the new SUMMARY on their
+  next refresh. There is no switch to turn it off.
+- The `links.portal` link is labelled `Meeting page:` in DESCRIPTION instead of `Portal:`, since it is usually a
+  city's page for that meeting rather than a portal. The label is not hashed, so SEQUENCE does not change. The
+  `URL` property and the record field name (`portal`, CSV `portal_url`) are unchanged.
+
+### Added
+
+- `default_duration` config key: an ISO 8601 / RFC 5545 duration (for example `"PT90M"`) for the end time assumed
+  when a record has none and no end rule matches. The default stays 3 hours. It sits beside the existing
+  `default_duration_hours` and `default_duration_minutes`; giving two of them is an error.
+
 ## 0.2.0 - 2026-11-24
 
 ### Added

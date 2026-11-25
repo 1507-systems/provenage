@@ -75,7 +75,7 @@ class Grouping(unittest.TestCase):
     def test_summaries(self):
         for k in ("all", "planning-commission"):
             text = self.f["calendar/demo-town/%s.ics" % k].decode()
-            self.assertIn("SUMMARY:Planning Commission Regular Meeting\r\n", text)
+            self.assertIn("SUMMARY:Cancelled: Planning Commission Regular Meeting\r\n", text)
         self.assertIn("SUMMARY:City Council Study Session\r\n", self.f["calendar/demo-town/all.ics"].decode())
 
     def test_sort_order_date_time_uid(self):

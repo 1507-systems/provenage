@@ -39,7 +39,7 @@ Mapping to the calendar feed (`<X>` is the configured property prefix, `X-MEETIN
 | rescheduled | CONFIRMED | `<X>-LIFECYCLE:rescheduled` | unchanged |
 | completed | CONFIRMED | `<X>-LIFECYCLE:completed` | unchanged |
 | postponed | TENTATIVE | `<X>-LIFECYCLE:postponed` | prefixed `Postponed: ` |
-| cancelled, canceled | CANCELLED | none | unchanged, event kept |
+| cancelled, canceled | CANCELLED | none | prefixed `Cancelled: `, event kept |
 
 The SEQUENCE bump comes only from the change hash (which includes the raw status string); there is no separate
 status-driven bump.

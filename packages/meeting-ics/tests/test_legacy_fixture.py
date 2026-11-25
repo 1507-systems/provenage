@@ -4,6 +4,12 @@ legacy_records.json is rebuilt with default options (plus uid_domain) and a fres
 legacy_feed.ics exactly and the ledger entries must equal legacy_ledger.json. Later changes must keep this passing
 (built with method=None and refresh_interval=None, which turn the new header defaults off) so existing
 consumers' feeds do not drift.
+
+0.2.1 changed two presentation details, with no option to restore the old text (the Postponed: prefix has no
+switch either): a cancelled event's SUMMARY is prefixed "Cancelled: " and the portal link is labelled
+"Meeting page:" instead of "Portal:". legacy_feed.ics was updated for exactly those two differences (and folding
+of the relabelled line); legacy_ledger.json is byte-identical, and test_f1_summary_duration checks that rebuilding
+against it bumps nothing, which is what protects existing subscribers.
 """
 import json
 import os

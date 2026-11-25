@@ -32,8 +32,8 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261007T180000
 DTEND;TZID=America/Chicago:20261007T210000
 SUMMARY:Planning Commission Regular Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/pc-201\nAgenda: http
- s://demo-town.example/meetings/pc-201/agenda.pdf
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/pc-201\nAgenda
+ : https://demo-town.example/meetings/pc-201/agenda.pdf
 LOCATION:Demo Town Hall\, Room 2B\; 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/pc-201
 STATUS:CONFIRMED
@@ -47,8 +47,8 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261013T183000
 DTEND;TZID=America/Chicago:20261013T213000
 SUMMARY:Town Council Regular Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/tc-101\nAgenda: http
- s://demo-town.example/meetings/tc-101/agenda.pdf
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/tc-101\nAgenda
+ : https://demo-town.example/meetings/tc-101/agenda.pdf
 LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/tc-101
 STATUS:CONFIRMED
@@ -61,8 +61,8 @@ UID:demo-town-tc-102@api.1507.systems
 DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261020T170000
 DTEND;TZID=America/Chicago:20261020T200000
-SUMMARY:Town Council Special Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/tc-102
+SUMMARY:Cancelled: Town Council Special Meeting
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/tc-102
 LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/tc-102
 STATUS:CANCELLED
@@ -76,8 +76,8 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261027T183000
 DTEND;TZID=America/Chicago:20261027T213000
 SUMMARY:Town Council Regular Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/tc-103\nAgenda: http
- s://demo-town.example/meetings/tc-103/agenda.pdf
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/tc-103\nAgenda
+ : https://demo-town.example/meetings/tc-103/agenda.pdf
 LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/tc-103
 STATUS:CONFIRMED
@@ -91,7 +91,7 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261103T170000
 DTEND;TZID=America/Chicago:20261103T183000
 SUMMARY:Town Council Study Session
-DESCRIPTION:Portal: https://demo-town.example/meetings/tc-104
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/tc-104
 LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/tc-104
 STATUS:CONFIRMED
@@ -105,7 +105,7 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261104T180000
 DTEND;TZID=America/Chicago:20261104T210000
 SUMMARY:Planning Commission Regular Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/pc-202
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/pc-202
 LOCATION:Demo Town Hall\, Room 2B\; 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/pc-202
 STATUS:CONFIRMED
@@ -119,7 +119,7 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261110T183000
 DTEND;TZID=America/Chicago:20261110T201500
 SUMMARY:Town Council Regular Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/tc-105
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/tc-105
 LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/tc-105
 STATUS:CONFIRMED
@@ -133,7 +133,7 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261118T180000
 DTEND;TZID=America/Chicago:20261118T210000
 SUMMARY:Planning Commission Regular Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/pc-203
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/pc-203
 LOCATION:Demo Town Hall\, Room 2B\; 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/pc-203
 STATUS:CONFIRMED
@@ -147,8 +147,8 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261124T183000
 DTEND;TZID=America/Chicago:20261124T213000
 SUMMARY:Town Council Regular Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/tc-106\nJoin online:
-  https://video.example.com/j/106\nDial-in: +1 555 0100\, ID 106
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/tc-106\nJoin o
+ nline: https://video.example.com/j/106\nDial-in: +1 555 0100\, ID 106
 LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/tc-106
 STATUS:CONFIRMED
@@ -175,7 +175,7 @@ DTSTAMP:20261001T150000Z
 DTSTART;TZID=America/Chicago:20261208T183000
 DTEND;TZID=America/Chicago:20261208T213000
 SUMMARY:Town Council Regular Meeting
-DESCRIPTION:Portal: https://demo-town.example/meetings/tc-107
+DESCRIPTION:Meeting page: https://demo-town.example/meetings/tc-107
 LOCATION:Demo Town Hall\, Council Chambers\, 100 Main Street\, Demo Town
 URL:https://demo-town.example/meetings/tc-107
 STATUS:CONFIRMED

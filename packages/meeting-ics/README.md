@@ -143,7 +143,7 @@ in the past, and `uid_domain` and the other build options.
 | `rescheduled` | CONFIRMED | `<x_prefix>-LIFECYCLE:rescheduled` | unchanged |
 | `completed` | CONFIRMED | `<x_prefix>-LIFECYCLE:completed` | unchanged |
 | `postponed` | TENTATIVE | `<x_prefix>-LIFECYCLE:postponed` | prefixed `Postponed: ` |
-| `cancelled`, `canceled` (alias) | CANCELLED | none | unchanged; the event stays in the feed |
+| `cancelled`, `canceled` (alias) | CANCELLED | none | prefixed `Cancelled: ` (never doubled; a source title already starting `Cancelled:` or `Canceled:` is normalised to one prefix); the event stays in the feed |
 
 Statuses are lowercase. A record with a postponed meeting keeps its original date; if the source gives a new date,
 send `rescheduled`. SEQUENCE is driven only by the change hash, which includes the raw status string and
@@ -151,7 +151,7 @@ send `rescheduled`. SEQUENCE is driven only by the change hash, which includes t
 
 ## Options (`BuildOptions`, or `--config` JSON)
 
-`prodid`; `uid_domain`; `default_duration` (JSON: `default_duration_hours` or `_minutes`); `end_rules`, a list of
+`prodid`; `uid_domain`; `default_duration` (the end time assumed when a record has none and no end rule matches; default 3 hours. In JSON: `"default_duration": "PT90M"` (an ISO 8601 / RFC 5545 duration, whole minutes), or `default_duration_hours` / `default_duration_minutes`; give only one). Set it shorter for a body whose meetings run back to back, so a meeting with an unknown end does not overlap the next one; `end_rules`, a list of
 (meeting_type substring, case-insensitive) to a fixed local end `"HH:MM"` or `{duration_minutes|end_local, basis}`,
 first match wins; `x_prefix` (default `X-MEETING-ICS`; a host project may set its own, for example `X-EXAMPLE`); `calendar_name`; `calendar_description` (X-WR-CALDESC); `method` (`"PUBLISH"`, the default, or null to omit METHOD); `refresh_interval` (an RFC 5545 duration such as `PT1H`, the default, `P1D` or `PT30M`, or null to omit the refresh hints); `detail`: `links` (implemented),
 `topics` and `full` (stubs that raise NotImplementedError, pending a design decision).
@@ -181,8 +181,8 @@ null` in `--config`) to keep the old bytes.
 2. DTSTAMP is `retrieved_at`, never the wall clock.
 3. DTSTART/DTEND carry `TZID`; a VTIMEZONE is emitted for each zone present.
 4. DTEND derived as above and always labelled as assumed, rule-set or observed.
-5. SUMMARY is meeting_type, prefixed by body unless it already starts with it. Links level shows no agenda text.
-6. DESCRIPTION is the labelled authoritative links (Portal, Agenda, Packet, Minutes, Video; null is omitted), then `Join online:` and `Dial-in:` from `remote_access` when present.
+5. SUMMARY is meeting_type, prefixed by body unless it already starts with it; then `Postponed: ` or `Cancelled: ` is added for those statuses. Links level shows no agenda text.
+6. DESCRIPTION is the labelled authoritative links (Meeting page, Agenda, Packet, Minutes, Video; null is omitted), then `Join online:` and `Dial-in:` from `remote_access` when present.
 7. URL is the portal link; if absent, an AMBIGUITY note records it.
 8. Status mapping as in the Status table.
 9. LOCATION when present, else AMBIGUITY `no-location`.

@@ -9,8 +9,8 @@
    "jurisdiction": "demo-town",
    "key": "calendar/demo-town/all.ics",
    "kind": "combined",
-   "sha256": "a75daa926ece5ec6280fe78cc76967922cebf8596d436369088911fc8e215cf3",
-   "size": 6601,
+   "sha256": "485c4c260a58b33b9cf06e4341cee4ee1ba0e022a0a271bd693fe673c4d55785",
+   "size": 6672,
    "title": "Demo Town: All meetings"
   },
   {
@@ -22,8 +22,8 @@
    "jurisdiction": "demo-town",
    "key": "calendar/demo-town/planning-commission.ics",
    "kind": "body",
-   "sha256": "eb04ff760559a7d03cb5984b6ed906761ebf1d49032ad69114854dad7969a364",
-   "size": 2791,
+   "sha256": "2f30792f4f318751d98f0e7b4cc5c62a4654dedb3e7b0409b0543f47ff79b2e2",
+   "size": 2809,
    "title": "Demo Town: Planning Commission"
   },
   {
@@ -35,8 +35,8 @@
    "jurisdiction": "demo-town",
    "key": "calendar/demo-town/town-council.ics",
    "kind": "body",
-   "sha256": "a082b2f8468d11ce3d43faf1897a9d002256a8c2f9d327f5bdbe0c0da2c5f044",
-   "size": 4562,
+   "sha256": "4912ee7202b38d58f5c3536c1a934fe9e0a5b92fc9dd80293f834665242ac67a",
+   "size": 4615,
    "title": "Demo Town: Town Council"
   }
  ],
