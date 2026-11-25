@@ -18,6 +18,9 @@ export const STALE_MS = 3_600_000;
 
 export interface IndexCopy {
   text: string;
+  /** Unquoted ETag: the only form R2's onlyIf conditions accept. */
+  etag: string;
+  /** Quoted ETag: for the response ETag header and If-None-Match. */
   httpEtag: string;
   uploaded: Date;
   size: number;
@@ -47,7 +50,7 @@ async function refresh(bucket: R2Bucket, now: number): Promise<IndexResult> {
     const prev = state;
     const obj = await bucket.get(
       INDEX_KEY,
-      prev ? { onlyIf: { etagDoesNotMatch: prev.copy.httpEtag } } : undefined,
+      prev ? { onlyIf: { etagDoesNotMatch: prev.copy.etag } } : undefined,
     );
     if (!obj) {
       state = null;
@@ -65,6 +68,7 @@ async function refresh(bucket: R2Bucket, now: number): Promise<IndexResult> {
     const text = await new Response((obj as R2ObjectBody).body).text();
     const copy: IndexCopy = {
       text,
+      etag: obj.etag,
       httpEtag: obj.httpEtag,
       uploaded: obj.uploaded,
       size: obj.size,

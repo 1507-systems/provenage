@@ -12,6 +12,7 @@ function makeBucket(files: Record<string, string>) {
   const meta = (key: string) => ({
     key,
     size: files[key].length,
+    etag: `e${state.etagN}-${key.length}`,
     httpEtag: `"e${state.etagN}-${key.length}"`,
     uploaded: new Date('2026-06-01T12:00:00Z'),
   });
@@ -19,9 +20,14 @@ function makeBucket(files: Record<string, string>) {
     async get(key: string, opts?: { onlyIf?: { etagDoesNotMatch?: string } }) {
       log.push(`get ${key}${opts?.onlyIf ? ' cond' : ''}`);
       if (state.fail) throw new Error('r2 down');
+      const cond = opts?.onlyIf?.etagDoesNotMatch;
+      // Real workerd rejects quoted conditional ETags.
+      if (cond?.startsWith('"')) {
+        throw new TypeError(`Conditional ETag should not be wrapped in quotes ("${cond}")`);
+      }
       if (!(key in files)) return null;
       const m = meta(key);
-      if (opts?.onlyIf?.etagDoesNotMatch === m.httpEtag) return m; // no body
+      if (cond === m.etag) return m; // no body
       return {
         ...m,
         body: new Response(files[key]).body,
@@ -122,6 +128,35 @@ describe('index cache', () => {
     expect(await (await call('/calendar/index.json')).text()).toBe(INDEX); // still within 60 s
     vi.setSystemTime(T0.getTime() + 61_000);
     expect(await (await call('/calendar/index.json')).text()).toBe('{"feeds":[1]}');
+  });
+
+  it('conditional recheck serves the new body and ETag within one recheck window', async () => {
+    const r1 = await call('/calendar/index.json');
+    const etag1 = r1.headers.get('ETag');
+    fx.files['calendar/index.json'] = '{"feeds":[2]}';
+    fx.state.etagN = 2;
+    vi.setSystemTime(T0.getTime() + 60_000);
+    const r2 = await call('/calendar/index.json');
+    expect(await r2.text()).toBe('{"feeds":[2]}');
+    expect(r2.headers.get('ETag')).not.toBe(etag1);
+    expect(fx.log.filter((l) => l.endsWith('cond')).length).toBe(1);
+    expect(indexReads()).toBe(2);
+    // Advancing past STALE_MS must not 503: the recheck really succeeded (goodAt advanced).
+    vi.setSystemTime(T0.getTime() + 60_000 + 3_600_001);
+    expect((await call('/calendar/index.json')).status).toBe(200);
+  });
+
+  it('unchanged index: conditional recheck succeeds and keeps goodAt fresh', async () => {
+    await call('/calendar/index.json');
+    for (let i = 1; i <= 80; i++) {
+      vi.setSystemTime(T0.getTime() + i * 60_000);
+      expect((await call('/calendar/index.json')).status).toBe(200);
+    }
+    // Every recheck was conditional and none fell back to the failure path.
+    expect(fx.log.filter((l) => l.endsWith('cond')).length).toBe(80);
+    fx.state.fail = true;
+    vi.setSystemTime(T0.getTime() + 81 * 60_000);
+    expect((await call('/calendar/index.json')).status).toBe(200); // goodAt recent
   });
 
   it('serves the last good copy for up to 1 h when R2 fails, then 503', async () => {
