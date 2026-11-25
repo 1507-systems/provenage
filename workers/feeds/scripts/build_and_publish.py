@@ -553,7 +553,7 @@ def parse_args(argv):
                     help="local = wrangler's local simulator; remote = the real bucket (needs the operator's env)")
     ap.add_argument("--persist-to", help="local simulator state directory (only with --target local)")
     ap.add_argument("--dry-run", action="store_true", help="build, check and print the plan; write nothing")
-    ap.add_argument("--force", action="store_true", help="publish despite a guard refusal (shrink, alias, vanished feed); each is printed")
+    ap.add_argument("--force", action="store_true", help="publish despite a guard refusal; each override is printed")
     ap.add_argument("--init-ledger", action="store_true",
                     help="start an empty ledger although calendar/index.json exists (resets SEQUENCE)")
     ap.add_argument("--work-dir", help="scratch directory: must be new or empty, or carry the marker file this "
