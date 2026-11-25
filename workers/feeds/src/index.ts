@@ -8,6 +8,8 @@
  * No auth, no RSVP/attendance/member features by design.
  */
 
+import { getIndex } from './indexcache';
+
 export interface Env {
   FEEDS: R2Bucket;
 }
@@ -15,7 +17,10 @@ export interface Env {
 const SEGMENT = '[a-z0-9][a-z0-9._-]{0,63}';
 const FEED_RE = new RegExp(`^/calendar/(${SEGMENT})/(${SEGMENT})\\.(ics|json)$`);
 const INDEX_PATH = '/calendar/index.json';
-const INDEX_KEY = 'calendar/index.json';
+
+// Only index.json carries CORS (the builder page, on another origin, reads it).
+// Feeds and every error response deliberately do not.
+const CORS = { 'Access-Control-Allow-Origin': '*' };
 
 function baseHeaders(extra: Record<string, string> = {}): Headers {
   const h = new Headers(extra);
@@ -84,6 +89,47 @@ async function serveObject(
   return new Response((obj as R2ObjectBody).body, { status: 200, headers });
 }
 
+function unavailable(isHead: boolean): Response {
+  return new Response(isHead ? null : JSON.stringify({ error: 'temporarily unavailable' }), {
+    status: 503,
+    headers: baseHeaders({
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Retry-After': '300',
+    }),
+  });
+}
+
+/** Serve index.json from the per-isolate cache (see indexcache.ts), with CORS. */
+async function serveIndex(request: Request, env: Env): Promise<Response> {
+  const isHead = request.method === 'HEAD';
+  const r = await getIndex(env.FEEDS);
+  if (!r.ok) return unavailable(isHead);
+  if (!r.copy) return notFound(isHead);
+  const { copy } = r;
+  const headers = baseHeaders({
+    'Content-Type': 'application/json; charset=utf-8',
+    ETag: copy.httpEtag,
+    'Last-Modified': copy.uploaded.toUTCString(),
+    'Cache-Control': 'public, max-age=300',
+    ...CORS,
+  });
+  const inm = request.headers.get('If-None-Match');
+  const ims = inm ? null : request.headers.get('If-Modified-Since');
+  const since = ims ? Date.parse(ims) : NaN;
+  if (
+    etagMatches(inm, copy.httpEtag) ||
+    (!Number.isNaN(since) && Math.floor(copy.uploaded.getTime() / 1000) * 1000 <= since)
+  ) {
+    return new Response(null, { status: 304, headers });
+  }
+  if (isHead) {
+    headers.set('Content-Length', String(copy.size));
+    return new Response(null, { status: 200, headers });
+  }
+  return new Response(copy.text, { status: 200, headers });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method !== 'GET' && request.method !== 'HEAD') return methodNotAllowed();
@@ -91,7 +137,7 @@ export default {
     const { pathname } = new URL(request.url);
 
     if (pathname === INDEX_PATH) {
-      return serveObject(request, env, INDEX_KEY, 'application/json; charset=utf-8');
+      return serveIndex(request, env);
     }
 
     const m = FEED_RE.exec(pathname);

@@ -106,3 +106,9 @@ A feed whose body leaves the input stays in the bucket and stays servable. The r
 
 - `python -m pytest workers/feeds/scripts` : in-memory store tests (P*). No network.
 - `PROVENAGE_WRANGLER_LOCAL=1 python -m pytest workers/feeds/scripts -k WranglerLocal` : the same flow against wrangler's local R2 simulator (needs `npm ci`). Local only; nothing remote is ever touched.
+
+## Index cache, CORS and logging
+
+- `GET/HEAD /calendar/index.json` is the only route with `Access-Control-Allow-Origin: *` (200, 304 and HEAD). Feeds and error responses carry no CORS header; `OPTIONS` stays 405.
+- The index is held in memory per isolate, rechecked against R2 at most every 60 s (conditional read), and the last good copy is served for up to 1 h if R2 fails (503 after that).
+- Observability is off in `wrangler.toml` and `src/` must not call `console.*`; a test enforces both.
