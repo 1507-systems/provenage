@@ -178,6 +178,18 @@ def _aliases_of(index):
     return {k: a.get(k) or {} for k in ("bodies", "jurisdictions")}
 
 
+def _covered(j, b, n_al, new_keys):
+    """Follow the Worker's resolution order (5.3): is a vanished feed j/b retired or moved to a feed still published?"""
+    # 5.3 step 2: a body alias wins (null = retired; the builder guarantees a non-null target is a current feed)
+    if b != "all" and "%s/%s" % (j, b) in n_al["bodies"]:
+        return True
+    # 5.3 steps 1-2: otherwise the jurisdiction alias applies; null = retired, else the moved key must exist
+    if j in n_al["jurisdictions"]:
+        t = n_al["jurisdictions"][j]
+        return t is None or "calendar/%s/%s.ics" % (t, b) in new_keys
+    return False
+
+
 def alias_problems(prev, new) -> List[str]:
     """Permanence guards for a readable previous index: aliases are append-only, and no non-dev feed key may vanish
     unless an alias covers it. A feed in a jurisdiction the PREVIOUS index marks status "dev" is exempt (its slug
@@ -205,7 +217,7 @@ def alias_problems(prev, new) -> List[str]:
         j, b = k.split("/")[1], k.split("/")[2][:-4]
         if j in dev:
             continue
-        if j in n_al["jurisdictions"] or ("%s/%s" % (j, b)) in n_al["bodies"]:
+        if _covered(j, b, n_al, new_keys):
             continue
         problems.append("feed %s disappeared without an alias" % k)
     return problems

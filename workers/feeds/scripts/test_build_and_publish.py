@@ -363,6 +363,30 @@ class AliasGuards(Base):
         code, _, err = self.go(self.args(self.recs(["alpha", "beta"], j="new-town")))
         self.assertEqual(code, 0, err)
 
+    def _alias_target_missing(self, aliases):
+        self.cfg({"old-town": {"name": "Old Town"}, "new-town": {"name": "New Town"}})
+        recs = self.recs(["alpha", "gamma"], j="old-town") + self.recs(["beta"], j="new-town")
+        self.assertEqual(self.go(self.args(recs))[0], 0)
+        self.cfg({"new-town": {"name": "New Town"}}, aliases=aliases)
+        return self.args(self.recs(["alpha", "beta"], j="new-town"))
+
+    def test_jurisdiction_alias_to_missing_target_feed_refused_then_forced(self):
+        a = self._alias_target_missing({"jurisdictions": {"old-town": "new-town"}})
+        code, _, err = self.go(a)
+        self.assertEqual(code, 4)
+        self.assertIn("refused: feed calendar/old-town/gamma.ics disappeared without an alias", err)
+        a.force = True
+        code, out, _ = self.go(a)
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING (forced): feed calendar/old-town/gamma.ics disappeared without an alias", out)
+
+    def test_jurisdiction_alias_missing_target_ok_with_body_alias(self):
+        for bodies in ({"old-town/gamma": None}, {"old-town/gamma": "new-town/beta"}):
+            self.setUp()
+            a = self._alias_target_missing({"jurisdictions": {"old-town": "new-town"}, "bodies": bodies})
+            code, _, err = self.go(a)
+            self.assertEqual(code, 0, err)
+
     def test_previous_index_without_new_blocks_is_comparable(self):
         self.seed_live()
         idx = self.index()
