@@ -107,7 +107,7 @@ jobs:
         run: npm audit --audit-level=high
 
   site:
-    # Validation only: tests the static builder page (site/) in headless Chromium. Deploys nothing.
+    # Validation only: tests the static builder page (site/) in headless Chromium and WebKit. Deploys nothing.
     # Pinned to ubuntu-latest because Playwright needs the OS libraries installed with --with-deps (sudo).
     runs-on: ubuntu-latest
     steps:
@@ -127,9 +127,9 @@ jobs:
         working-directory: site
         run: npm run test:unit
 
-      - name: Install Chromium
+      - name: Install Chromium and WebKit
         working-directory: site
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Browser tests (axe accessibility, 320 px width, CSP, XSS, states)
         working-directory: site

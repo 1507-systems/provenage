@@ -433,6 +433,22 @@ test('320x640: the sticky result panel never covers a focused control (SC 2.4.11
   expect(bad).toEqual([]);
 });
 
+test('320x640 SC 2.4.11: focusing the address after the panel scrolled leaves it visible and unclipped', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await open(page, '#v1=alpha-town.city-council.planning-commission_beta-county.board-of-commissioners');
+  await expect(page.locator('#address')).not.toHaveValue('');
+  await page.locator('#separate').evaluate((d) => (d.open = true));
+  await page.locator('#separate summary').focus();
+  await page.locator('#address').focus();
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const hit = await page.evaluate(() => {
+    const a = document.getElementById('address');
+    const b = a.getBoundingClientRect();
+    return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) === a;
+  });
+  expect(hit, 'the address field is the element at its own centre').toBe(true);
+});
+
 /** 14 places (demo-town, longmont-co and 12 synthetic -xx places) with about 80 bodies. */
 function fourteenPlaces() {
   const doc = { schema: fixture.schema, mix: structuredClone(fixture.mix), aliases: { bodies: {}, jurisdictions: {} }, jurisdictions: {}, feeds: [] };

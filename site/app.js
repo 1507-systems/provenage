@@ -407,7 +407,12 @@ function wireActions() {
       if (id === 'google') say('Google Calendar: use a computer; the Google phone app cannot add by address.');
     });
   }
-  $('address').addEventListener('focus', () => $('address').select());
+  // select() during focus cancels WebKit's reveal-on-focus scroll inside the result panel's own scroller
+  // (SC 2.4.11), leaving the field clipped. Scrolling it into view explicitly fixes that in every engine.
+  $('address').addEventListener('focus', (e) => {
+    e.target.select();
+    e.target.scrollIntoView({ block: 'nearest' });
+  });
 }
 
 // ---------- page address (fragment) ----------
