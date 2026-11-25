@@ -9,6 +9,7 @@
  */
 
 import { getIndex } from './indexcache';
+import { serveMix } from './mix/serve';
 
 export interface Env {
   FEEDS: R2Bucket;
@@ -139,6 +140,9 @@ export default {
     if (pathname === INDEX_PATH) {
       return serveIndex(request, env);
     }
+
+    // Composite route. Matched before FEED_RE; /mix/ can never collide with /calendar/.
+    if (pathname.startsWith('/mix/')) return serveMix(request, env, pathname);
 
     const m = FEED_RE.exec(pathname);
     // SEGMENT requires a leading [a-z0-9], so '.', '..' and encoded forms never match.
