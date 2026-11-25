@@ -259,6 +259,43 @@ its body feed and in `all.ics`; subscribing to both shows each meeting twice. Ev
 `check-feed` before anything is written; `out/calendar` must be empty unless you pass `--overwrite`, and the ledger
 is saved last. Stdout is `feeds=N events=N cancelled=N sequence_bumped=<uids|none>`.
 
+#### Several jurisdictions in one set
+
+One set (one bucket, one index) can hold jurisdictions that differ in settings that are otherwise set-wide.
+Each `jurisdictions.<slug>` entry may carry, besides `name`, `short_name` and `status`:
+
+| Key | Effect for that jurisdiction only |
+|---|---|
+| `uid_namespace` | Replaces the `uid_namespace` of its records (the adapter's `--uid-namespace`). UIDs become `<uid_namespace>-<record_id>@<uid_domain>`. Letters, digits and `. _ -`, max 128. |
+| `prodid` | The `PRODID` of its feeds. |
+| `calendar_description` | `X-WR-CALDESC` of its feeds; `null` removes the set-wide description. |
+| `default_duration`, `default_duration_hours`, `default_duration_minutes` | Default meeting length (same forms as the set-wide key; give only one). |
+| `end_rules` | End-time rules, replacing (not extending) the set-wide list. |
+
+A key that is absent keeps the set-wide value, so a config without these keys builds byte-identical feeds. Time zones
+are per record (the CSV `timezone` column), so they need no override. `x_prefix`, `uid_domain`, `method`,
+`refresh_interval` and `detail` stay set-wide. An override for a slug that has no records in the input is an error
+(it is probably a typo). Because the namespace is part of every UID, changing it re-issues every event of that
+jurisdiction: set it once, to the value already in use if the jurisdiction is already published.
+
+Example, one set holding an existing demo feed and a second place whose events must never share UIDs with it:
+
+    {"uid_domain": "example.org", "default_duration_hours": 2,
+     "jurisdictions": {
+       "demo-town":   {"name": "Demo Town", "uid_namespace": "demo-town", "default_duration_hours": 3,
+                       "calendar_description": "Fictional demonstration feed."},
+       "other-town-xx": {"name": "Other Town", "uid_namespace": "other-town-xx"}}}
+
+`build-set` refuses a set in which one UID (`uid_namespace` + `record_id`) appears under two different
+jurisdictions (`UID collision across jurisdictions`), since the `/mix/v1` merge relies on duplicates being impossible.
+`build_feedset` also validates the `SetMeta` it is given (short names, statuses, aliases, namespaces, overrides), not
+only `load_set_meta`.
+
+Repeat `--input` (`build-set` and `validate`) to read several files, for example one CSV per jurisdiction; records are
+concatenated in the order given, problems are prefixed with the file name, and the same `--adapter`,
+`--uid-namespace` and `--retrieved-at` apply to every file (use the per-jurisdiction `uid_namespace` to separate
+them). The publisher script takes `--input` once and `--more-input FILE` any number of times.
+
 ### SEQUENCE ledger
 
 A ledger that is not valid (bad JSON, an empty file, a wrong top level, a malformed entry) is a `ValueError`

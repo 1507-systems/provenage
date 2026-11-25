@@ -19,7 +19,9 @@ end_rules entries: [substring, "HH:MM"] or {"match":..,"end_local":..,"basis":..
 
 build-set groups records by jurisdiction_slug and body_slug (both required) and writes DIR/calendar/<j>/<b>.ics,
 DIR/calendar/<j>/all.ics and DIR/calendar/index.json with one shared ledger. --config must set uid_domain and may
-add jurisdictions: {slug: {"name": ...}} for feed titles; calendar_name is not allowed.
+add jurisdictions: {slug: {"name": ...}} for feed titles; calendar_name is not allowed. A jurisdiction entry may also
+carry uid_namespace, prodid, calendar_description, default_duration* and end_rules, which override the set-wide
+values for that jurisdiction only. --input may be repeated (build-set and validate) to read several files.
 
 check-feed checks a built .ics (strict parse, structure, escapes, no ATTENDEE) and exits 0 (ok), 1 (problems found)
 or 2 (unreadable file). template writes the CSV header row for the csv_template adapter to stdout or --output.
@@ -66,6 +68,26 @@ def load_records(input_path, adapter=None, uid_namespace=None, retrieved_at=None
     return mod.load(input_path, uid_namespace=uid_namespace, retrieved_at=retrieved_at)
 
 
+def load_many(inputs, adapter=None, uid_namespace=None, retrieved_at=None):
+    """Records from one input path, or from several (a repeated --input), concatenated in the order given.
+    With several files, every problem is reported with its file name in front; duplicate UIDs across files are
+    refused later, when the records are validated together."""
+    if isinstance(inputs, str) or len(inputs) == 1:
+        return load_records(inputs if isinstance(inputs, str) else inputs[0], adapter, uid_namespace, retrieved_at)
+    records, errors = [], []
+    for path in inputs:
+        try:
+            records += load_records(path, adapter, uid_namespace, retrieved_at)
+        except RecordError as e:
+            for err in e.errors:
+                err.path = "%s: %s" % (path, err.path)
+            errors += e.errors
+    if errors:
+        errors[0].errors = errors
+        raise errors[0]
+    return records
+
+
 def run(input_path, output_path, ledger_path, options, adapter=None, uid_namespace=None, retrieved_at=None):
     records = load_records(input_path, adapter, uid_namespace, retrieved_at)
     ledger = Ledger.load(ledger_path)
@@ -92,7 +114,7 @@ def _build(a):
 def _build_set(a):
     with open(a.config, encoding="utf-8") as f:
         options, names, meta = feedset.load_set_meta(json.load(f))
-    records = load_records(a.input, a.adapter, a.uid_namespace, a.retrieved_at)
+    records = load_many(a.input, a.adapter, a.uid_namespace, a.retrieved_at)
     ledger = Ledger.load(a.ledger)
     fs = feedset.build_feedset(records, options, ledger, names, meta)  # nothing is written before this succeeds
     feedset.write_feedset(fs, a.out, a.overwrite)
@@ -103,7 +125,7 @@ def _build_set(a):
 
 
 def _validate(a):
-    records = validate_records(load_records(a.input, a.adapter, a.uid_namespace, a.retrieved_at))
+    records = validate_records(load_many(a.input, a.adapter, a.uid_namespace, a.retrieved_at))
     print("ok records=%d" % len(records))
 
 
@@ -153,7 +175,8 @@ def main(argv=None):
     b.add_argument("--retrieved-at", help=RETRIEVED_HELP)
     b.set_defaults(func=_build, tail="nothing written")
     s = sub.add_parser("build-set", help="build per-body feeds, a combined feed per jurisdiction and an index")
-    s.add_argument("--input", required=True)
+    s.add_argument("--input", required=True, action="append",
+                   help="records file; repeat it to build one set from several files (e.g. one CSV per jurisdiction)")
     s.add_argument("--config", required=True, help="BuildOptions keys (uid_domain required) plus jurisdictions")
     s.add_argument("--ledger", required=True)
     s.add_argument("--out", required=True, help="output directory; feeds go under OUT/calendar/")
@@ -163,7 +186,7 @@ def main(argv=None):
     s.add_argument("--retrieved-at", help=RETRIEVED_HELP)
     s.set_defaults(func=_build_set, tail="nothing written")
     v = sub.add_parser("validate", help="check an input file; prints 'ok records=N' or every problem")
-    v.add_argument("--input", required=True)
+    v.add_argument("--input", required=True, action="append", help="records file; may be repeated")
     v.add_argument("--adapter")
     v.add_argument("--uid-namespace", help="required with --adapter; prefix of every UID")
     v.add_argument("--retrieved-at", help=RETRIEVED_HELP)
